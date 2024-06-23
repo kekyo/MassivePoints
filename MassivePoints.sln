@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassivePoints", "MassivePoints\MassivePoints.csproj", "{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassivePointsTests", "MassivePointsTests\MassivePointsTests.csproj", "{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

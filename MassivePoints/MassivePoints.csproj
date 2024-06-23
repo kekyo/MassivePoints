@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net461;net462;net48;net481;netstandard2.0;netstandard2.1;netcoreapp2.0;netcoreapp2.1;netcoreapp2.2;netcoreapp3.0;netcoreapp3.1;net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nito.AsyncEx.Coordination" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="('$(TargetFramework)' == 'net461') OR ('$(TargetFramework)' == 'net462') OR ('$(TargetFramework)' == 'net48') OR ('$(TargetFramework)' == 'net481') OR ('$(TargetFramework)' == 'netstandard2.0') OR ('$(TargetFramework)' == 'netcoreapp2.0') OR ('$(TargetFramework)' == 'netcoreapp2.1') OR ('$(TargetFramework)' == 'netcoreapp2.2')">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../Images/MassivePoints.100.png" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+</Project>
