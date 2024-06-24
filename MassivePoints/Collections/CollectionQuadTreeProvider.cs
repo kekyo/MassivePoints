@@ -18,7 +18,7 @@ using Nito.AsyncEx;
 
 namespace MassivePoints.Collections;
 
-public sealed class CollectionQuadTreeProvider<TValue> : IQuadTreeProvider<TValue, int>
+public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, int>
 {
     private readonly AsyncReaderWriterLock locker = new();
     private readonly Dictionary<int, QuadTreeNode<int>> nodes = new();

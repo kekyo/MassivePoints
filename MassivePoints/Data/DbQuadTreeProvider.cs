@@ -18,7 +18,7 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
-public sealed class DbQuadTreeProvider<TValue> : IQuadTreeProvider<TValue, long>
+public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly DbConnection connection;
     
@@ -108,10 +108,24 @@ public sealed class DbQuadTreeProvider<TValue> : IQuadTreeProvider<TValue, long>
 #endif
         ));
 
+    /// <summary>
+    /// This indicates the overall range of the coordinate points managed by data provider.
+    /// </summary>
     public Bound Entire { get; }
+
+    /// <summary>
+    /// Maximum number of coordinate points in each node.
+    /// </summary>
     public int MaxNodePoints { get; }
+
+    /// <summary>
+    /// Root node ID.
+    /// </summary>
     public long RootId => 0;
     
+    /// <summary>
+    /// Database metadata symbol prefix.
+    /// </summary>
     public string Prefix { get; }
 
     internal DbCommand CreateCommand(
@@ -192,6 +206,12 @@ public sealed class DbQuadTreeProvider<TValue> : IQuadTreeProvider<TValue, long>
         return notFound();
     }
 
+    /// <summary>
+    /// Get information about the node.
+    /// </summary>
+    /// <param name="nodeId">Node ID</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Node information if available</returns>
     public ValueTask<QuadTreeNode<long>?> GetNodeAsync(
         long nodeId, CancellationToken ct) =>
         ExecuteRead1Async(

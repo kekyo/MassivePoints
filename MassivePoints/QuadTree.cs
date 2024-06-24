@@ -21,18 +21,36 @@ using MassivePoints.Internal;
 
 namespace MassivePoints;
 
+/// <summary>
+/// QuadTree implementation.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
+/// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
 public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
 {
-    private readonly IQuadTreeProvider<TValue, TNodeId> provider;
+    private readonly IDataProvider<TValue, TNodeId> provider;
 
-    public QuadTree(IQuadTreeProvider<TValue, TNodeId> provider) =>
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="provider">Backend data provider</param>
+    public QuadTree(IDataProvider<TValue, TNodeId> provider) =>
         this.provider = provider;
 
+    /// <summary>
+    /// This indicates the overall range of the coordinate points managed by QuadTree.
+    /// </summary>
     public Bound Entire =>
         this.provider.Entire;
 
+    /// <summary>
+    /// Begin a session.
+    /// </summary>
+    /// <param name="willUpdate">True if possibility changes will be made during the session</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The session</returns>
     public ValueTask<ISession> BeginSessionAsync(
-        bool willUpdate, CancellationToken ct) =>
+        bool willUpdate, CancellationToken ct = default) =>
         this.provider.BeginSessionAsync(willUpdate, ct);
     
     /////////////////////////////////////////////////////////////////////////////////
@@ -77,8 +95,17 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         return depth;
     }
 
+    /// <summary>
+    /// Add a coordinate point.
+    /// </summary>
+    /// <param name="point">Coordinate point</param>
+    /// <param name="value">Related value</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>A depth value where placed the coordinate point</returns>
+    /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
+    /// This value is not used directly, but can be used as a performance indicator.</remarks>
     public ValueTask<int> AddAsync(
-        Point point, TValue value, CancellationToken ct) =>
+        Point point, TValue value, CancellationToken ct = default) =>
         this.AddAsync(this.provider.RootId, this.provider.Entire, point, value, 0, ct);
         
     /////////////////////////////////////////////////////////////////////////////////
@@ -112,8 +139,14 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         }
     }
 
+    /// <summary>
+    /// Lookup values with a coordinate point.
+    /// </summary>
+    /// <param name="point">Coordinate point</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Point and values</returns>
     public async ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
-        Point point, CancellationToken ct)
+        Point point, CancellationToken ct = default)
     {
         var results = new List<KeyValuePair<Point, TValue>>();
         await this.LookupPointAsync(this.provider.RootId, this.provider.Entire, point, results, ct);
@@ -154,8 +187,14 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         }
     }
 
+    /// <summary>
+    /// Lookup values with coordinate range.
+    /// </summary>
+    /// <param name="bound">Coordinate range</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Point and values</returns>
     public async ValueTask<KeyValuePair<Point, TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct)
+        Bound bound, CancellationToken ct = default)
     {
         var results = new List<KeyValuePair<Point, TValue>>();
         await this.LookupBoundAsync(this.provider.RootId, this.provider.Entire, bound, results, ct);
@@ -206,8 +245,14 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         }
     }
 
+    /// <summary>
+    /// Streaming lookup values with coordinate range.
+    /// </summary>
+    /// <param name="bound">Coordinate range</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Point and values asynchronous iterator</returns>
     public async IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
-        Bound bound, [EnumeratorCancellation] CancellationToken ct)
+        Bound bound, [EnumeratorCancellation] CancellationToken ct = default)
     {
         // Unwrap all nested asynchronous tasks.
         await foreach (var entry in
@@ -248,8 +293,14 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         }
     }
 
+    /// <summary>
+    /// Remove coordinate point and values.
+    /// </summary>
+    /// <param name="point">A coordinate point</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Count of removed coordinate points</returns>
     public ValueTask<int> RemovePointsAsync(
-        Point point, CancellationToken ct) =>
+        Point point, CancellationToken ct = default) =>
         this.RemovePointsAsync(this.provider.RootId, this.provider.Entire, point, ct);
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -288,7 +339,13 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         }
     }
 
+    /// <summary>
+    /// Remove coordinate point and values.
+    /// </summary>
+    /// <param name="bound">Coordinate range</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Count of removed coordinate points</returns>
     public ValueTask<long> RemoveBoundAsync(
-        Bound bound, CancellationToken ct) =>
+        Bound bound, CancellationToken ct = default) =>
         this.RemoveBoundAsync(this.provider.RootId, this.provider.Entire, bound, ct);
 }

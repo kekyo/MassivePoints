@@ -44,6 +44,6 @@ public static class QuadTreeFactoryExtension
 
     public static IQuadTree<TValue> Create<TValue, TNodeId>(
         this QuadTreeFactory _,
-        IQuadTreeProvider<TValue, TNodeId> provider) =>
+        IDataProvider<TValue, TNodeId> provider) =>
         new QuadTree<TValue, TNodeId>(provider);
 }
