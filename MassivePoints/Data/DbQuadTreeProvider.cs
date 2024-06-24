@@ -11,13 +11,20 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace MassivePoints.Data;
 
+/// <summary>
+/// Non volatile QuadTree ADO.NET data provider.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
 public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly DbConnection connection;
@@ -28,6 +35,7 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
     private readonly DbCommand selectNodeMaxIdCommand;
     private readonly DbCommand updateNodeCommand;
     private readonly DbCommand insertNodeCommand;
+    private readonly DbCommand deleteNodeCommand;
     private readonly DbCommand updatePointsCommand;
     private readonly DbCommand selectPointCommand;
     private readonly DbCommand selectPointsCommand;
@@ -62,6 +70,9 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         this.insertNodeCommand = this.CreateCommand(
             $"INSERT INTO {prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
+        this.deleteNodeCommand = this.CreateCommand(
+            $"DELETE FROM {prefix}_nodes WHERE id=@id",
+            "@id");
         this.updatePointsCommand = this.CreateCommand(
             $"UPDATE {prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1", "@to_node_id");
@@ -88,6 +99,7 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
             this.selectNodeMaxIdCommand.DisposeAsync().AsTask(),
             this.updateNodeCommand.DisposeAsync().AsTask(),
             this.insertNodeCommand.DisposeAsync().AsTask(),
+            this.deleteNodeCommand.DisposeAsync().AsTask(),
             this.updatePointsCommand.DisposeAsync().AsTask(),
             this.selectPointCommand.DisposeAsync().AsTask(),
             this.selectPointsCommand.DisposeAsync().AsTask(),
@@ -100,6 +112,7 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
             Task.Run(this.selectNodeMaxIdCommand.Dispose),
             Task.Run(this.updateNodeCommand.Dispose),
             Task.Run(this.insertNodeCommand.Dispose),
+            Task.Run(this.deleteNodeCommand.Dispose),
             Task.Run(this.updatePointsCommand.Dispose),
             Task.Run(this.selectPointCommand.Dispose),
             Task.Run(this.selectPointsCommand.Dispose),
@@ -162,6 +175,7 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         this.selectNodeMaxIdCommand.Transaction = transaction;
         this.updateNodeCommand.Transaction = transaction;
         this.insertNodeCommand.Transaction = transaction;
+        this.deleteNodeCommand.Transaction = transaction;
         this.updatePointsCommand.Transaction = transaction;
         this.selectPointCommand.Transaction = transaction;
         this.selectPointsCommand.Transaction = transaction;
@@ -221,12 +235,12 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
             ct,
             nodeId)!;
 
-    public ValueTask<bool> IsDensePointsAsync(
+    public ValueTask<int> GetPointCountAsync(
         long nodeId, CancellationToken ct) =>
         ExecuteRead1Async(
             this.selectPointCountCommand,
-            reader => reader.GetInt32(0) >= this.MaxNodePoints,
-            () => throw new InvalidDataException($"IsDensePoints: NodeId={nodeId}"),
+            reader => reader.GetInt32(0),
+            () => throw new InvalidDataException($"GetPointCount: NodeId={nodeId}"),
             ct,
             nodeId);
 
@@ -245,53 +259,10 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         }
     }
 
-    public async ValueTask<QuadTreeNode<long>> AssignNextNodeSetAsync(
-        long nodeId, CancellationToken ct)
-    {
-        var node = await ExecuteRead1Async(
-            this.selectNodeMaxIdCommand,
-            reader =>
-            {
-                var baseNodeId = reader.GetInt64(0);    
-                return new QuadTreeNode<long>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
-            },
-            () => throw new InvalidDataException(
-                $"AssignNextNodeSet [1]: NodeId={nodeId}"),
-            ct)!;
-
-        this.updateNodeCommand.Parameters[0].Value = nodeId;
-        this.updateNodeCommand.Parameters[1].Value = node.TopLeftId;
-        this.updateNodeCommand.Parameters[2].Value = node.TopRightId;
-        this.updateNodeCommand.Parameters[3].Value = node.BottomLeftId;
-        this.updateNodeCommand.Parameters[4].Value = node.BottomRightId;
-
-        if (await this.updateNodeCommand.ExecuteNonQueryAsync(ct) < 0)
-        {
-            throw new InvalidDataException(
-                $"AssignNextNodeSet [2]: NodeId={nodeId}");
-        }
-
-        this.insertNodeCommand.Parameters[1].Value = DBNull.Value;
-        this.insertNodeCommand.Parameters[2].Value = DBNull.Value;
-        this.insertNodeCommand.Parameters[3].Value = DBNull.Value;
-        this.insertNodeCommand.Parameters[4].Value = DBNull.Value;
-
-        foreach (var childNodeId in node.ChildIds)
-        {
-            this.insertNodeCommand.Parameters[0].Value = childNodeId;
-            if (await this.insertNodeCommand.ExecuteNonQueryAsync(ct) < 0)
-            {
-                throw new InvalidDataException(
-                    $"AssignNextNodeSet [3]: NodeId={childNodeId}");
-            }
-        }
-        
-        return node;
-    }
-
     private async ValueTask MovePointsAsync(
         long nodeId, Bound bound, long toNodeId, CancellationToken ct)
     {
+        this.updatePointsCommand.Parameters[0].Value = nodeId;
         this.updatePointsCommand.Parameters[1].Value = bound.X;
         this.updatePointsCommand.Parameters[2].Value = bound.Y;
         this.updatePointsCommand.Parameters[3].Value = bound.X + bound.Width;
@@ -304,16 +275,80 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
                 $"MovePoints: NodeId={nodeId}, TargetBound={bound}, ToNodeId={toNodeId}");
         }
     }
-    
-    public async ValueTask MovePointsAsync(
-        long nodeId, Bound targetBound, QuadTreeNode<long> toNodes, CancellationToken ct)
-    {
-        this.updatePointsCommand.Parameters[0].Value = nodeId;
 
-        await this.MovePointsAsync(nodeId, targetBound.TopLeft, toNodes.TopLeftId, ct);
-        await this.MovePointsAsync(nodeId, targetBound.TopRight, toNodes.TopRightId, ct);
-        await this.MovePointsAsync(nodeId, targetBound.BottomLeft, toNodes.BottomLeftId, ct);
-        await this.MovePointsAsync(nodeId, targetBound.BottomRight, toNodes.BottomRightId, ct);
+    public async ValueTask<QuadTreeNode<long>> DistributePointsAsync(
+        long nodeId, Bound[] toBounds, CancellationToken ct)
+    {
+        var node = await ExecuteRead1Async(
+            this.selectNodeMaxIdCommand,
+            reader =>
+            {
+                var baseNodeId = reader.GetInt64(0);
+                return new QuadTreeNode<long>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
+            },
+            () => throw new InvalidDataException(
+                $"DistributePoints [1]: NodeId={nodeId}"),
+            ct)!;
+
+        this.updateNodeCommand.Parameters[0].Value = nodeId;
+        this.updateNodeCommand.Parameters[1].Value = node.TopLeftId;
+        this.updateNodeCommand.Parameters[2].Value = node.TopRightId;
+        this.updateNodeCommand.Parameters[3].Value = node.BottomLeftId;
+        this.updateNodeCommand.Parameters[4].Value = node.BottomRightId;
+
+        if (await this.updateNodeCommand.ExecuteNonQueryAsync(ct) < 0)
+        {
+            throw new InvalidDataException(
+                $"DistributePoints [2]: NodeId={nodeId}");
+        }
+
+        this.insertNodeCommand.Parameters[1].Value = DBNull.Value;
+        this.insertNodeCommand.Parameters[2].Value = DBNull.Value;
+        this.insertNodeCommand.Parameters[3].Value = DBNull.Value;
+        this.insertNodeCommand.Parameters[4].Value = DBNull.Value;
+
+        var toNodeIds = node.ChildIds;
+        for (var index = 0; index < toBounds.Length; index++)
+        {
+            this.insertNodeCommand.Parameters[0].Value = toNodeIds[index];
+            if (await this.insertNodeCommand.ExecuteNonQueryAsync(ct) < 0)
+            {
+                throw new InvalidDataException(
+                    $"DistributePoints [3]: NodeId={toNodeIds[index]}");
+            }
+            await this.MovePointsAsync(nodeId, toBounds[index], toNodeIds[index], ct);
+        }
+
+        return node;
+    }
+
+    public async ValueTask AggregatePointsAsync(
+        long[] nodeIds, Bound toBound, long toNodeId, CancellationToken ct)
+    {
+        foreach (var nodeId in nodeIds)
+        {
+            await this.MovePointsAsync(nodeId, toBound, toNodeId, ct);
+
+            this.deleteNodeCommand.Parameters[0].Value = nodeId;
+
+            if (await this.deleteNodeCommand.ExecuteNonQueryAsync(ct) < 0)
+            {
+                throw new InvalidDataException(
+                    $"AggregatePoints [1]: NodeId={nodeId}");
+            }
+        }
+
+        this.updateNodeCommand.Parameters[0].Value = toNodeId;
+        this.updateNodeCommand.Parameters[1].Value = DBNull.Value;
+        this.updateNodeCommand.Parameters[2].Value = DBNull.Value;
+        this.updateNodeCommand.Parameters[3].Value = DBNull.Value;
+        this.updateNodeCommand.Parameters[4].Value = DBNull.Value;
+
+        if (await this.updateNodeCommand.ExecuteNonQueryAsync(ct) < 0)
+        {
+            throw new InvalidDataException(
+                $"AggregatePoints [2]: NodeId={toNodeId}");
+        }
     }
 
     public async ValueTask LookupPointAsync(
@@ -407,27 +442,38 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         }
     }
 
-    public async ValueTask<int> RemovePointsAsync(
-        long nodeId, Point point, CancellationToken ct)
+    public async ValueTask<RemoveResults> RemovePointsAsync(
+        long nodeId, Point point, bool includeRemains, CancellationToken ct)
     {
         this.deletePointCommand.Parameters[0].Value = nodeId;
         this.deletePointCommand.Parameters[1].Value = point.X;
         this.deletePointCommand.Parameters[2].Value = point.Y;
 
-        var records = await this.deletePointCommand.ExecuteNonQueryAsync(ct);
-        if (records < 0)
+        var removed = await this.deletePointCommand.ExecuteNonQueryAsync(ct);
+        if (removed < 0)
         {
             throw new InvalidDataException(
                 $"RemovePoints: NodeId={nodeId}, TargetPoint={point}");
         }
-        
-        // TODO: rebalance
 
-        return records;
+        if (includeRemains)
+        {
+            var remains = await ExecuteRead1Async(
+                this.selectPointCountCommand,
+                reader => reader.GetInt32(0),
+                () => throw new InvalidDataException($"RemovePoints: NodeId={nodeId}"),
+                ct,
+                nodeId);
+            return new(removed, remains);
+        }
+        else
+        {
+            return new(removed, -1);
+        }
     }
 
-    public async ValueTask<int> RemoveBoundAsync(
-        long nodeId, Bound bound, CancellationToken ct)
+    public async ValueTask<RemoveResults> RemoveBoundAsync(
+        long nodeId, Bound bound, bool includeRemains, CancellationToken ct)
     {
         this.deleteBoundCommand.Parameters[0].Value = nodeId;
         this.deleteBoundCommand.Parameters[1].Value = bound.X;
@@ -435,15 +481,26 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         this.deleteBoundCommand.Parameters[3].Value = bound.X + bound.Width;
         this.deleteBoundCommand.Parameters[4].Value = bound.Y + bound.Height;
 
-        var records = await this.deleteBoundCommand.ExecuteNonQueryAsync(ct);
-        if (records < 0)
+        var removed = await this.deleteBoundCommand.ExecuteNonQueryAsync(ct);
+        if (removed < 0)
         {
             throw new InvalidDataException(
                 $"RemoveBound: NodeId={nodeId}, TargetBound={bound}");
         }
-        
-        // TODO: rebalance
 
-        return records;
+        if (includeRemains)
+        {
+            var remains = await ExecuteRead1Async(
+                this.selectPointCountCommand,
+                reader => reader.GetInt32(0),
+                () => throw new InvalidDataException($"RemovePoints: NodeId={nodeId}"),
+                ct,
+                nodeId);
+            return new(removed, remains);
+        }
+        else
+        {
+            return new(removed, -1);
+        }
     }
 }

@@ -26,11 +26,6 @@ public sealed class Bound
     // |  | BottomLeft  | BottomRight |
     // v  |             |             |
     // +  +-------------+-------------+
-
-    private Bound? topLeft;
-    private Bound? topRight;
-    private Bound? bottomLeft;
-    private Bound? bottomRight;
     
     /// <summary>
     /// X
@@ -77,62 +72,17 @@ public sealed class Bound
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound TopLeft
+    public Bound[] ChildBounds
     {
         get
         {
-            if (this.topLeft == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.topLeft = new(this.X, this.Y, wh, hh);
-            }
-            return this.topLeft;
-        }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound TopRight
-    {
-        get
-        {
-            if (this.topRight == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.topRight = new(this.X + wh, this.Y, wh, hh);
-            }
-            return this.topRight;
-        }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound BottomLeft
-    {
-        get
-        {
-            if (this.bottomLeft == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.bottomLeft = new(this.X, this.Y + hh, wh, hh);
-            }
-            return this.bottomLeft;
-        }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound BottomRight
-    {
-        get
-        {
-            if (this.bottomRight == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.bottomRight = new(this.X + wh, this.Y + hh, wh, hh);
-            }
-            return this.bottomRight;
+            var wh = this.Width / 2;
+            var hh = this.Height / 2;
+            var topLeft = new Bound(this.X, this.Y, wh, hh);
+            var topRight = new Bound(this.X + wh, this.Y, wh, hh);
+            var bottomLeft = new Bound(this.X, this.Y + hh, wh, hh);
+            var bottomRight = new Bound(this.X + wh, this.Y + hh, wh, hh);
+            return new[] { topLeft, topRight, bottomLeft, bottomRight };
         }
     }
 

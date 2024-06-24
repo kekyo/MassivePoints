@@ -14,6 +14,24 @@ using System.Threading.Tasks;
 
 namespace MassivePoints;
 
+public readonly struct RemoveResults
+{
+    public readonly long Removed;
+    public readonly long Remains;
+
+    public RemoveResults(long removed, long remains)
+    {
+        this.Removed = removed;
+        this.Remains = remains;
+    }
+
+    public void Deconstruct(out long removed, out long remains)
+    {
+        removed = this.Removed;
+        remains = this.Remains;
+    }
+}
+
 /// <summary>
 /// QuadTree backend data provider interface.
 /// </summary>
@@ -22,7 +40,7 @@ namespace MassivePoints;
 public interface IDataProvider<TValue, TNodeId> : IAsyncDisposable
 {
     /// <summary>
-    /// This indicates the overall range of the coordinate points managed by data provider.
+    /// The overall range of the coordinate points managed.
     /// </summary>
     Bound Entire { get; }
 
@@ -50,17 +68,33 @@ public interface IDataProvider<TValue, TNodeId> : IAsyncDisposable
     /// <param name="nodeId">Node ID</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Node information if available</returns>
-    ValueTask<QuadTreeNode<TNodeId>?> GetNodeAsync(TNodeId nodeId, CancellationToken ct);
-    ValueTask<bool> IsDensePointsAsync(TNodeId nodeId, CancellationToken ct);
-    ValueTask AddPointAsync(TNodeId nodeId, Point point, TValue value, CancellationToken ct);
+    ValueTask<QuadTreeNode<TNodeId>?> GetNodeAsync(
+        TNodeId nodeId, CancellationToken ct);
 
-    ValueTask<QuadTreeNode<TNodeId>> AssignNextNodeSetAsync(TNodeId nodeId, CancellationToken ct);
-    ValueTask MovePointsAsync(TNodeId nodeId, Bound toBound, QuadTreeNode<TNodeId> toNodes, CancellationToken ct);
+    ValueTask<int> GetPointCountAsync(
+        TNodeId nodeId, CancellationToken ct);
 
-    ValueTask LookupPointAsync(TNodeId nodeId, Point targetPoint, List<KeyValuePair<Point, TValue>> results, CancellationToken ct);
-    ValueTask LookupBoundAsync(TNodeId nodeId, Bound targetBound, List<KeyValuePair<Point, TValue>> results, CancellationToken ct);
-    IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(TNodeId nodeId, Bound targetBound, CancellationToken ct);
+    ValueTask AddPointAsync(
+        TNodeId nodeId, Point point, TValue value, CancellationToken ct);
 
-    ValueTask<int> RemovePointsAsync(TNodeId nodeId, Point point, CancellationToken ct);
-    ValueTask<int> RemoveBoundAsync(TNodeId nodeId, Bound bound, CancellationToken ct);
+    ValueTask<QuadTreeNode<TNodeId>> DistributePointsAsync(
+        TNodeId nodeId, Bound[] toBounds, CancellationToken ct);
+
+    ValueTask AggregatePointsAsync(
+        TNodeId[] nodeIds, Bound toBound, TNodeId toNodeId, CancellationToken ct);
+
+    ValueTask LookupPointAsync(
+        TNodeId nodeId, Point targetPoint, List<KeyValuePair<Point, TValue>> results, CancellationToken ct);
+
+    ValueTask LookupBoundAsync(
+        TNodeId nodeId, Bound targetBound, List<KeyValuePair<Point, TValue>> results, CancellationToken ct);
+
+    IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
+        TNodeId nodeId, Bound targetBound, CancellationToken ct);
+
+    ValueTask<RemoveResults> RemovePointsAsync(
+        TNodeId nodeId, Point point, bool includeRemains, CancellationToken ct);
+
+    ValueTask<RemoveResults> RemoveBoundAsync(
+        TNodeId nodeId, Bound bound, bool includeRemains, CancellationToken ct);
 }

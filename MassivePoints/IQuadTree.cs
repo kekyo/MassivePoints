@@ -33,10 +33,10 @@ public interface ISession : IAsyncDisposable
 public interface IQuadTree<TValue>
 {
     /// <summary>
-    /// This indicates the overall range of the coordinate points managed by QuadTree.
+    /// The overall range of the coordinate points managed.
     /// </summary>
     Bound Entire { get; }
-    
+
     /// <summary>
     /// Begin a session.
     /// </summary>
@@ -89,17 +89,19 @@ public interface IQuadTree<TValue>
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="point">A coordinate point</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
     ValueTask<int> RemovePointsAsync(
-        Point point, CancellationToken ct = default);
+        Point point, bool performShrinking = false, CancellationToken ct = default);
     
     /// <summary>
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
     ValueTask<long> RemoveBoundAsync(
-        Bound bound, CancellationToken ct = default);
+        Bound bound, bool performShrinking = false, CancellationToken ct = default);
 }

@@ -7,6 +7,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -34,11 +35,12 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     /// Constructor.
     /// </summary>
     /// <param name="provider">Backend data provider</param>
-    public QuadTree(IDataProvider<TValue, TNodeId> provider) =>
+    public QuadTree(
+        IDataProvider<TValue, TNodeId> provider) =>
         this.provider = provider;
 
     /// <summary>
-    /// This indicates the overall range of the coordinate points managed by QuadTree.
+    /// The overall range of the coordinate points managed.
     /// </summary>
     public Bound Entire =>
         this.provider.Entire;
@@ -58,41 +60,39 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     private async ValueTask<int> AddAsync(
         TNodeId nodeId,
         Bound nodeBound,
-        Point point,
+        Point targetPoint,
         TValue value,
         int depth,
         CancellationToken ct)
     {
         if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            if (!await this.provider.IsDensePointsAsync(nodeId, ct))
+            var count = await this.provider.GetPointCountAsync(nodeId, ct);
+            if (count < this.provider.MaxNodePoints)
             {
-                await this.provider.AddPointAsync(nodeId, point, value, ct);
+                await this.provider.AddPointAsync(nodeId, targetPoint, value, ct);
                 return depth;
             }
-            node = await this.provider.AssignNextNodeSetAsync(nodeId, ct);
-            await this.provider.MovePointsAsync(nodeId, nodeBound, node, ct);
+
+            node = await this.provider.DistributePointsAsync(
+                nodeId, nodeBound.ChildBounds, ct);
         }
 
-        if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsWithin(point))
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        for (var index = 0; index < childIds.Length; index++)
         {
-            depth = await AddAsync(node.TopLeftId, topLeftBound, point, value, depth + 1, ct);
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (childBound.IsWithin(targetPoint))
+            {
+                return await AddAsync(childId, childBound, targetPoint, value, depth + 1, ct);
+            }
         }
-        else if (nodeBound.TopRight is { } topRightBound && topRightBound.IsWithin(point))
-        {
-            depth = await AddAsync(node.TopRightId, topRightBound, point, value, depth + 1, ct);
-        }
-        else if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsWithin(point))
-        {
-            depth = await AddAsync(node.BottomLeftId, bottomLeftBound, point, value, depth + 1, ct);
-        }
-        else
-        {
-            var bottomRightBound = nodeBound.BottomRight;
-            Debug.Assert(bottomRightBound.IsWithin(point));
-            depth = await AddAsync(node.BottomRightId, bottomRightBound, point, value, depth + 1, ct);
-        }
-        return depth;
+
+        throw new ArgumentException(
+            $"Could not add a coordinate point outside entire bound: Point={targetPoint}");
     }
 
     /// <summary>
@@ -120,22 +120,21 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
             await this.provider.LookupPointAsync(nodeId, targetPoint, results, ct);
+            return;
         }
-        else if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsWithin(targetPoint))
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        for (var index = 0; index < childIds.Length; index++)
         {
-            await this.LookupPointAsync(node.TopLeftId, topLeftBound, targetPoint, results, ct);
-        }
-        else if (nodeBound.TopRight is { } topRightBound && topRightBound.IsWithin(targetPoint))
-        {
-            await this.LookupPointAsync(node.TopRightId, topRightBound, targetPoint, results, ct);
-        }
-        else if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsWithin(targetPoint))
-        {
-            await this.LookupPointAsync(node.BottomLeftId, bottomLeftBound, targetPoint, results, ct);
-        }
-        else
-        {
-            await this.LookupPointAsync(node.BottomRightId, nodeBound.BottomRight, targetPoint, results, ct);
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (childBound.IsWithin(targetPoint))
+            {
+                await this.LookupPointAsync(childId, childBound, targetPoint, results, ct);
+                return;
+            }
         }
     }
 
@@ -165,24 +164,19 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
             await this.provider.LookupBoundAsync(nodeId, targetBound, results, ct);
+            return;
         }
-        else
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        for (var index = 0; index < childIds.Length; index++)
         {
-            if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsIntersection(targetBound))
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (childBound.IsIntersection(targetBound))
             {
-                await this.LookupBoundAsync(node.TopLeftId, topLeftBound, targetBound, results, ct);
-            }
-            if (nodeBound.TopRight is { } topRightBound && topRightBound.IsIntersection(targetBound))
-            {
-                await this.LookupBoundAsync(node.TopRightId, topRightBound, targetBound, results, ct);
-            }
-            if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsIntersection(targetBound))
-            {
-                await this.LookupBoundAsync(node.BottomLeftId, bottomLeftBound, targetBound, results, ct);
-            }
-            if (nodeBound.BottomRight is { } bottomRightBound && bottomRightBound.IsIntersection(targetBound))
-            {
-                await this.LookupBoundAsync(node.BottomRightId, bottomRightBound, targetBound, results, ct);
+                await this.LookupBoundAsync(childId, childBound, targetBound, results, ct);
             }
         }
     }
@@ -217,32 +211,23 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         {
             return this.provider.EnumerateBoundAsync(nodeId, targetBound, ct);
         }
-        else
-        {
-            IAsyncEnumerable<KeyValuePair<Point, TValue>>? results = null;
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+        IAsyncEnumerable<KeyValuePair<Point, TValue>>? results = null;
             
-            if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsIntersection(targetBound))
+        for (var index = 0; index < childIds.Length; index++)
+        {
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (childBound.IsIntersection(targetBound))
             {
-                results = results?.Concat(await this.EnumerateBoundAsync(node.TopLeftId, topLeftBound, targetBound, ct), ct) ??
-                    await this.EnumerateBoundAsync(node.TopLeftId, topLeftBound, targetBound, ct);
+                results = results?.Concat(await this.EnumerateBoundAsync(childId, childBound, targetBound, ct), ct) ??
+                    await this.EnumerateBoundAsync(childId, childBound, targetBound, ct);
             }
-            if (nodeBound.TopRight is { } topRightBound && topRightBound.IsIntersection(targetBound))
-            {
-                results = results?.Concat(await this.EnumerateBoundAsync(node.TopRightId, topRightBound, targetBound, ct), ct) ??
-                    await this.EnumerateBoundAsync(node.TopRightId, topRightBound, targetBound, ct);
-            }
-            if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsIntersection(targetBound))
-            {
-                results = results?.Concat(await this.EnumerateBoundAsync(node.BottomLeftId, bottomLeftBound, targetBound, ct), ct) ??
-                    await this.EnumerateBoundAsync(node.BottomLeftId, bottomLeftBound, targetBound, ct);
-            }
-            if (nodeBound.BottomRight is { } bottomRightBound && bottomRightBound.IsIntersection(targetBound))
-            {
-                results = results?.Concat(await this.EnumerateBoundAsync(node.BottomRightId, bottomRightBound, targetBound, ct), ct) ??
-                    await this.EnumerateBoundAsync(node.BottomRightId, bottomRightBound, targetBound, ct);
-            }
-            return results ?? Utilities.AsyncEmpty<KeyValuePair<Point, TValue>>();
         }
+        
+        return results ?? Utilities.AsyncEmpty<KeyValuePair<Point, TValue>>();
     }
 
     /// <summary>
@@ -265,7 +250,7 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<int> RemovePointsAsync(
+    private async ValueTask<long> GetPointCountAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -273,23 +258,81 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     {
         if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.provider.RemovePointsAsync(nodeId, targetPoint, ct);
+            return await this.provider.GetPointCountAsync(nodeId, ct);
         }
-        else if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsWithin(targetPoint))
+
+        var childIds = node!.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+        var remains = 0L;
+
+        for (var index = 0; index < childBounds.Length; index++)
         {
-            return await this.RemovePointsAsync(node.TopLeftId, topLeftBound, targetPoint, ct);
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            Debug.Assert(!childBound.IsWithin(targetPoint));
+            remains += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
         }
-        else if (nodeBound.TopRight is { } topRightBound && topRightBound.IsWithin(targetPoint))
+
+        return remains;
+    }
+    
+    private async ValueTask<RemoveResults> RemovePointsAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        Point targetPoint,
+        bool performShrinking,
+        CancellationToken ct)
+    {
+        if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.RemovePointsAsync(node.TopRightId, topRightBound, targetPoint, ct);
+            return await this.provider.RemovePointsAsync(
+                nodeId, targetPoint, performShrinking, ct);
         }
-        else if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsWithin(targetPoint))
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        if (performShrinking)
         {
-            return await this.RemovePointsAsync(node.BottomLeftId, bottomLeftBound, targetPoint, ct);
+            var removed = 0L;
+            var remains = 0L;
+
+            for (var index = 0; index < childBounds.Length; index++)
+            {
+                var childId = childIds[index];
+                var childBound = childBounds[index];
+                if (childBound.IsWithin(targetPoint))
+                {
+                    var (rmd, rms) = await this.RemovePointsAsync(
+                        childId, childBound, targetPoint, performShrinking, ct);
+                    removed += rmd;
+                    remains += rms;
+                }
+                else
+                {
+                    remains += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+                }
+            }
+
+            if (remains < this.provider.MaxNodePoints)
+            {
+                await this.provider.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
+            }
+            return new(removed, remains);
         }
         else
         {
-            return await this.RemovePointsAsync(node.BottomRightId, nodeBound.BottomRight, targetPoint, ct);
+            for (var index = 0; index < childBounds.Length; index++)
+            {
+                var childId = childIds[index];
+                var childBound = childBounds[index];
+                if (childBound.IsWithin(targetPoint))
+                {
+                    return await this.RemovePointsAsync(
+                        childId, childBound, targetPoint, performShrinking, ct);
+                }
+            }
+            return new(0, -1);
         }
     }
 
@@ -297,45 +340,83 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="point">A coordinate point</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    public ValueTask<int> RemovePointsAsync(
-        Point point, CancellationToken ct = default) =>
-        this.RemovePointsAsync(this.provider.RootId, this.provider.Entire, point, ct);
+    public async ValueTask<int> RemovePointsAsync(
+        Point point, bool performShrinking = false, CancellationToken ct = default)
+    {
+        var (removed, _) = await this.RemovePointsAsync(
+            this.provider.RootId, this.provider.Entire, point, performShrinking, ct);
+        Debug.Assert(removed <= int.MaxValue);
+        return (int)removed;
+    }
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<long> RemoveBoundAsync(
+    private async ValueTask<RemoveResults> RemoveBoundAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
+        bool performShrinking,
         CancellationToken ct)
     {
         if (await this.provider.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.provider.RemoveBoundAsync(nodeId, targetBound, ct);
+            return await this.provider.RemoveBoundAsync(
+                nodeId, targetBound, performShrinking, ct);
+        }
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        if (performShrinking)
+        {
+            var removed = 0L;
+            var remains = 0L;
+
+            for (var index = 0; index < childBounds.Length; index++)
+            {
+                var childId = childIds[index];
+                var childBound = childBounds[index];
+                if (childBound.IsIntersection(targetBound))
+                {
+                    var (rmd, rms) = await this.RemoveBoundAsync(
+                        childId, childBound, targetBound, performShrinking, ct);
+                    removed += rmd;
+                    remains += rms;
+                }
+                else
+                {
+                    remains += await this.provider.GetPointCountAsync(childId, ct);
+                }
+            }
+
+            if (remains < this.provider.MaxNodePoints)
+            {
+                await this.provider.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
+            }
+            return new(removed, remains);
         }
         else
         {
-            var count = 0L;
-            if (nodeBound.TopLeft is { } topLeftBound && topLeftBound.IsIntersection(targetBound))
+            var removed = 0L;
+            var remains = 0L;
+
+            for (var index = 0; index < childBounds.Length; index++)
             {
-                count += await this.RemoveBoundAsync(node.TopLeftId, topLeftBound, targetBound, ct);
-            }
-            if (nodeBound.TopRight is { } topRightBound && topRightBound.IsIntersection(targetBound))
-            {
-                count += await this.RemoveBoundAsync(node.TopRightId, topRightBound, targetBound, ct);
-            }
-            if (nodeBound.BottomLeft is { } bottomLeftBound && bottomLeftBound.IsIntersection(targetBound))
-            {
-                count += await this.RemoveBoundAsync(node.BottomLeftId, bottomLeftBound, targetBound, ct);
-            }
-            if (nodeBound.BottomRight is { } bottomRightBound && bottomRightBound.IsIntersection(targetBound))
-            {
-                count += await this.RemoveBoundAsync(node.BottomRightId, bottomRightBound, targetBound, ct);
+                var childId = childIds[index];
+                var childBound = childBounds[index];
+                if (childBound.IsIntersection(targetBound))
+                {
+                    var (rmd, rms) = await this.RemoveBoundAsync(
+                        childId, childBound, targetBound, performShrinking, ct);
+                    removed += rmd;
+                    remains += rms;
+                }
             }
 
-            return count;
+            return new(removed, remains);
         }
     }
 
@@ -343,9 +424,14 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    public ValueTask<long> RemoveBoundAsync(
-        Bound bound, CancellationToken ct = default) =>
-        this.RemoveBoundAsync(this.provider.RootId, this.provider.Entire, bound, ct);
+    public async ValueTask<long> RemoveBoundAsync(
+        Bound bound, bool performShrinking = false, CancellationToken ct = default)
+    {
+        var (removed, _) = await this.RemoveBoundAsync(
+            this.provider.RootId, this.provider.Entire, bound, performShrinking, ct);
+        return removed;
+    }
 }

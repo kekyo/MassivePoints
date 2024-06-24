@@ -233,12 +233,25 @@ If `true`, an exclusive lock is applied, so it is advisable to keep the number o
 Also, be sure to call `FinishAsync()` after any updates.
 Depending on the backend data provider, the updates may be undone.
 
+### Perform index shrinking
+
+In the default configuration of MassivePoints, even if you remove a coordinate point, the index will not be shrinked.
+
+The index shrinking is a slow process because it is expensive to determine when shrinking is necessary.
+While understanding this drawback, set the `performShrinking` argument to `true` as follows:
+
+```csharp
+// Remove coordinate range with index shrinking.
+Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+
+long removed = await quadTree.RemoveBoundAsync(
+    targetBound, performShrinking: true);
+```
 
 ----
 
 ## TODO
 
-* When coordinates are removed, the index reduction process is not performed.
 * Will fail when multiple read/write coordinates with overlapped asynchronous operations.
 * Additional xml comment and documents.
 * Supports F# friendly interfaces.
@@ -252,5 +265,7 @@ Apache-v2
 
 ## History
 
+* 0.9.0:
+  * Implemented index shrinking.
 * 0.8.0:
   * Initial release.

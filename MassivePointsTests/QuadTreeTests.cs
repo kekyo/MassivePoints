@@ -44,7 +44,7 @@ public sealed class QuadTreeTests
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -77,13 +77,13 @@ public sealed class QuadTreeTests
         {
             var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
             points[index] = point;
-            await quadTree.AddAsync(point, index, default);
+            await quadTree.AddAsync(point, index);
         }
         
         for (var index = 0L; index < count; index++)
         {
             var point = points[index];
-            var results = await quadTree.LookupPointAsync(point, default);
+            var results = await quadTree.LookupPointAsync(point);
 
             var f1 = results.Any(entry => entry.Value == index);
             Assert.That(f1, Is.True);
@@ -104,7 +104,7 @@ public sealed class QuadTreeTests
         {
             var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
             points[index] = point;
-            await quadTree.AddAsync(point, index, default);
+            await quadTree.AddAsync(point, index);
         }
         
         // Try random bounds lookup, repeats 100 times.
@@ -120,13 +120,13 @@ public sealed class QuadTreeTests
                 Select(entry => (long)entry.index).
                 ToArray();
             
-            var results = await quadTree.LookupBoundAsync(bound, default);
+            var results = await quadTree.LookupBoundAsync(bound);
             var actual = results.
                 Select(r => r.Value).
                 OrderBy(index => index).
                 ToArray();
-            
-            Assert.That(expected, Is.EqualTo(actual));
+
+            Assert.That(actual, Is.EqualTo(expected));
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class QuadTreeTests
         {
             var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
             points[index] = point;
-            await quadTree.AddAsync(point, index, default);
+            await quadTree.AddAsync(point, index);
         }
         
         // Try random bounds lookup, repeats 100 times.
@@ -169,12 +169,13 @@ public sealed class QuadTreeTests
                 OrderBy(index => index).
                 ToArray();
             
-            Assert.That(expected, Is.EqualTo(actual));
+            Assert.That(actual, Is.EqualTo(expected));
         }
     }
 
-    [TestCase(1000000, 1024)]
-    public async Task RemovePointsCollection(long count, int maxNodePoints)
+    [TestCase(100000, 1024, true)]
+    [TestCase(1000000, 1024, false)]
+    public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
@@ -191,21 +192,22 @@ public sealed class QuadTreeTests
             }
 
             list.Add(index);
-            await quadTree.AddAsync(point, index, default);
+            await quadTree.AddAsync(point, index);
         }
 
         foreach (var entry in points)
         {
-            var removed = await quadTree.RemovePointsAsync(entry.Key, default);
-            Assert.That(entry.Value.Count, Is.EqualTo(removed));
+            var removed = await quadTree.RemovePointsAsync(entry.Key, performShrinking);
+            Assert.That(removed, Is.EqualTo(entry.Value.Count));
         }
 
-        var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire, default);
+        var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire);
         Assert.That(willEmpty.Length, Is.EqualTo(0));
     }
 
-    [TestCase(1000000, 1024)]
-    public async Task RemoveBoundCollection(long count, int maxNodePoints)
+    [TestCase(1000000, 1024, true)]
+    [TestCase(1000000, 1024, false)]
+    public async Task RemoveBoundCollection(long count, int maxNodePoints, bool performShrinking)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
@@ -222,16 +224,17 @@ public sealed class QuadTreeTests
             }
 
             list.Add(index);
-            await quadTree.AddAsync(point, index, default);
+            await quadTree.AddAsync(point, index);
         }
 
-        var removed = await quadTree.RemoveBoundAsync(quadTree.Entire.TopLeft, default);
-        removed += await quadTree.RemoveBoundAsync(quadTree.Entire.TopRight, default);
-        removed += await quadTree.RemoveBoundAsync(quadTree.Entire.BottomLeft, default);
-        removed += await quadTree.RemoveBoundAsync(quadTree.Entire.BottomRight, default);
-        Assert.That(count, Is.EqualTo(removed));
+        var removed = 0L;
+        foreach (var childBound in quadTree.Entire.ChildBounds)
+        {
+            removed += await quadTree.RemoveBoundAsync(childBound, performShrinking);
+        }
+        Assert.That(removed, Is.EqualTo(count));
 
-        var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire, default);
+        var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire);
         Assert.That(willEmpty.Length, Is.EqualTo(0));
     }
 
@@ -255,12 +258,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -296,12 +299,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -312,13 +315,13 @@ public sealed class QuadTreeTests
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                 points[index] = point;
-                await quadTree.AddAsync(point, index, default);
+                await quadTree.AddAsync(point, index);
             }
         
             for (var index = 0L; index < count; index++)
             {
                 var point = points[index];
-                var results = await quadTree.LookupPointAsync(point, default);
+                var results = await quadTree.LookupPointAsync(point);
 
                 var f1 = results.Any(entry => entry.Value == index);
                 Assert.That(f1, Is.True);
@@ -347,12 +350,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -363,7 +366,7 @@ public sealed class QuadTreeTests
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                 points[index] = point;
-                await quadTree.AddAsync(point, index, default);
+                await quadTree.AddAsync(point, index);
             }
         
             // Try random bounds lookup, repeats 100 times.
@@ -379,13 +382,13 @@ public sealed class QuadTreeTests
                     Select(entry => (long)entry.index).
                     ToArray();
             
-                var results = await quadTree.LookupBoundAsync(bound, default);
+                var results = await quadTree.LookupBoundAsync(bound);
                 var actual = results.
                     Select(r => r.Value).
                     OrderBy(index => index).
                     ToArray();
             
-                Assert.That(expected, Is.EqualTo(actual));
+                Assert.That(actual, Is.EqualTo(expected));
             }
         }
         finally
@@ -409,12 +412,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -425,7 +428,7 @@ public sealed class QuadTreeTests
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                 points[index] = point;
-                await quadTree.AddAsync(point, index, default);
+                await quadTree.AddAsync(point, index);
             }
         
             // Try random bounds lookup, repeats 100 times.
@@ -452,7 +455,7 @@ public sealed class QuadTreeTests
                     OrderBy(index => index).
                     ToArray();
             
-                Assert.That(expected, Is.EqualTo(actual));
+                Assert.That(actual, Is.EqualTo(expected));
             }
         }
         finally
@@ -461,10 +464,11 @@ public sealed class QuadTreeTests
         }
     }
     
-    [TestCase(100000, 256)]
-    public async Task RemovePointsSqlite(long count, int maxNodePoints)
+    [TestCase(10000, 256, true)]
+    [TestCase(100000, 256, false)]
+    public async Task RemovePointsSqlite(long count, int maxNodePoints, bool performShrinking)
     {
-        var dbFilePath = Path.Combine(basePath, $"remove_points_{count}.db");
+        var dbFilePath = Path.Combine(basePath, $"remove_points_{count}{(performShrinking ? "_shr" : "")}.db");
         var connectionString = new SqliteConnectionStringBuilder()
         {
             DataSource = dbFilePath,
@@ -476,12 +480,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -498,16 +502,16 @@ public sealed class QuadTreeTests
                 }
 
                 list.Add(index);
-                await quadTree.AddAsync(point, index, default);
+                await quadTree.AddAsync(point, index);
             }
 
             foreach (var entry in points)
             {
-                var removed = await quadTree.RemovePointsAsync(entry.Key, default);
-                Assert.That(entry.Value.Count, Is.EqualTo(removed));
+                var removed = await quadTree.RemovePointsAsync(entry.Key, performShrinking);
+                Assert.That(removed, Is.EqualTo(entry.Value.Count));
             }
 
-            var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire, default);
+            var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire);
             Assert.That(willEmpty.Length, Is.EqualTo(0));
         }
         finally
@@ -515,11 +519,12 @@ public sealed class QuadTreeTests
             await session.FinishAsync();
         }
     }
-    
-    [TestCase(100000, 256)]
-    public async Task RemoveBoundSqlite(long count, int maxNodePoints)
+
+    [TestCase(100000, 256, true)]
+    [TestCase(100000, 256, false)]
+    public async Task RemoveBoundSqlite(long count, int maxNodePoints, bool performShrinking)
     {
-        var dbFilePath = Path.Combine(basePath, $"remove_bound_{count}.db");
+        var dbFilePath = Path.Combine(basePath, $"remove_bound_{count}{(performShrinking ? "_shr" : "")}.db");
         var connectionString = new SqliteConnectionStringBuilder()
         {
             DataSource = dbFilePath,
@@ -531,12 +536,12 @@ public sealed class QuadTreeTests
 
         var provider = QuadTree.Factory.CreateProvider<long>(connection, "test", (100000, 100000), maxNodePoints);
 
-        await provider.CreateSQLiteTablesAsync(false, default);
-        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+        await provider.CreateSQLiteTablesAsync(false);
+        await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory);
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true, default);
+        await using var session = await quadTree.BeginSessionAsync(true);
 
         try
         {
@@ -553,16 +558,17 @@ public sealed class QuadTreeTests
                 }
 
                 list.Add(index);
-                await quadTree.AddAsync(point, index, default);
+                await quadTree.AddAsync(point, index);
             }
 
-            var removed = await quadTree.RemoveBoundAsync(quadTree.Entire.TopLeft, default);
-            removed += await quadTree.RemoveBoundAsync(quadTree.Entire.TopRight, default);
-            removed += await quadTree.RemoveBoundAsync(quadTree.Entire.BottomLeft, default);
-            removed += await quadTree.RemoveBoundAsync(quadTree.Entire.BottomRight, default);
-            Assert.That(count, Is.EqualTo(removed));
+            var removed = 0L;
+            foreach (var childBound in quadTree.Entire.ChildBounds)
+            {
+                removed += await quadTree.RemoveBoundAsync(childBound, performShrinking);
+            }
+            Assert.That(removed, Is.EqualTo(count));
 
-            var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire, default);
+            var willEmpty = await quadTree.LookupBoundAsync(quadTree.Entire);
             Assert.That(willEmpty.Length, Is.EqualTo(0));
         }
         finally

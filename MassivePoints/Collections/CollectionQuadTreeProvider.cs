@@ -7,7 +7,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +21,12 @@ using Nito.AsyncEx;
 
 namespace MassivePoints.Collections;
 
-public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, int>
+/// <summary>
+/// Volatile in-memory QuadTree data provider.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
+public sealed class CollectionQuadTreeProvider<TValue> :
+    IDataProvider<TValue, int>
 {
     private readonly AsyncReaderWriterLock locker = new();
     private readonly Dictionary<int, QuadTreeNode<int>> nodes = new();
@@ -26,7 +34,8 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
     private int maxNodeId = 0;
 
     public CollectionQuadTreeProvider(
-        Bound entire, int maxNodePoints = 65536)
+        Bound entire,
+        int maxNodePoints = 65536)
     {
         this.Entire = entire;
         this.MaxNodePoints = maxNodePoints;
@@ -38,10 +47,27 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
         return default;
     }
 
+    /// <summary>
+    /// This indicates the overall range of the coordinate points managed by data provider.
+    /// </summary>
     public Bound Entire { get; }
+
+    /// <summary>
+    /// Maximum number of coordinate points in each node.
+    /// </summary>
     public int MaxNodePoints { get; }
+
+    /// <summary>
+    /// Root node ID.
+    /// </summary>
     public int RootId => 0;
 
+    /// <summary>
+    /// Begin a session.
+    /// </summary>
+    /// <param name="willUpdate">True if possibility changes will be made during the session</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The session</returns>
     public async ValueTask<ISession> BeginSessionAsync(
         bool willUpdate, CancellationToken ct)
     {
@@ -55,10 +81,10 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
         new((this.nodes.TryGetValue(nodeId, out var node) && node.TopLeftId != -1) ?
             new QuadTreeNode<int>(node.TopLeftId, node.TopRightId, node.BottomLeftId, node.BottomRightId) : null);
 
-    public ValueTask<bool> IsDensePointsAsync(
+    public ValueTask<int> GetPointCountAsync(
         int nodeId, CancellationToken ct) =>
-        new(this.nodePoints.TryGetValue(nodeId, out var points) &&
-            points.Count >= this.MaxNodePoints);
+        new(this.nodePoints.TryGetValue(nodeId, out var points) ?
+            points.Count : 0);
 
     public ValueTask AddPointAsync(
         int nodeId, Point point, TValue value, CancellationToken ct)
@@ -72,68 +98,64 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
         return default;
     }
 
-    public ValueTask<QuadTreeNode<int>> AssignNextNodeSetAsync(
-        int nodeId, CancellationToken ct)
+    public ValueTask<QuadTreeNode<int>> DistributePointsAsync(
+        int nodeId, Bound[] toBounds, CancellationToken ct)
     {
         var baseNodeId = this.maxNodeId;
+        this.maxNodeId += 4;
         var node = new QuadTreeNode<int>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
 
-        this.nodes[nodeId] = node;
-
-        this.maxNodeId += 4;
-        return new(node);
-    }
-
-    public ValueTask MovePointsAsync(
-        int nodeId, Bound toBound, QuadTreeNode<int> toNodes, CancellationToken ct)
-    {
         var points = this.nodePoints[nodeId];
+        var toPoints = new List<KeyValuePair<Point, TValue>>[toBounds.Length];
 
-        var topLeftPoints = new List<KeyValuePair<Point, TValue>>();
-        var topRightPoints = new List<KeyValuePair<Point, TValue>>();
-        var bottomLeftPoints = new List<KeyValuePair<Point, TValue>>();
-        var bottomRightPoints = new List<KeyValuePair<Point, TValue>>();
-
-        Parallel.ForEach(
-            points,
-            pointItem =>
+        Parallel.For(
+            0, toPoints.Length,
+            index =>
             {
-                if (toBound.TopLeft.IsWithin(pointItem.Key))
+                var toPointList = new List<KeyValuePair<Point, TValue>>();
+                toPoints[index] = toPointList;
+                var toBound = toBounds[index];
+                
+                foreach (var pointItem in points)
                 {
-                    lock (topLeftPoints)
+                    if (toBound.IsWithin(pointItem.Key))
                     {
-                        topLeftPoints.Add(pointItem);
-                    }
-                }
-                else if (toBound.TopRight.IsWithin(pointItem.Key))
-                {
-                    lock (topRightPoints)
-                    {
-                        topRightPoints.Add(pointItem);
-                    }
-                }
-                else if (toBound.BottomLeft.IsWithin(pointItem.Key))
-                {
-                    lock (bottomLeftPoints)
-                    {
-                        bottomLeftPoints.Add(pointItem);
-                    }
-                }
-                else
-                {
-                    lock (bottomRightPoints)
-                    {
-                        bottomRightPoints.Add(pointItem);
+                        toPointList.Add(pointItem);
                     }
                 }
             });
-        
-        this.nodePoints[toNodes.TopLeftId] = topLeftPoints;
-        this.nodePoints[toNodes.TopRightId] = topRightPoints;
-        this.nodePoints[toNodes.BottomLeftId] = bottomLeftPoints;
-        this.nodePoints[toNodes.BottomRightId] = bottomRightPoints;
+
+        Debug.Assert(toPoints.Sum(pointItems => pointItems.Count) == points.Count);
+
+        var toNodeIds = node.ChildIds;
+        for (var index = 0; index < toPoints.Length; index++)
+        {
+            this.nodePoints.Add(toNodeIds[index], toPoints[index]);
+        }
         this.nodePoints.Remove(nodeId);
 
+        this.nodes.Add(nodeId, node);
+        return new(node);
+    }
+
+    public ValueTask AggregatePointsAsync(
+        int[] nodeIds, Bound toBound, int toNodeId, CancellationToken ct)
+    {
+        var points = new List<KeyValuePair<Point, TValue>>();
+
+        foreach (var nodeId in nodeIds)
+        {
+            if (this.nodePoints.TryGetValue(nodeId, out var pointItems))
+            {
+                Debug.Assert(pointItems.All(pointItem => toBound.IsWithin(pointItem.Key)));
+
+                points.AddRange(pointItems);
+                this.nodePoints.Remove(nodeId);
+            }
+        }
+        this.nodePoints.Add(toNodeId, points);
+
+        this.nodes.Remove(toNodeId);
         return default;
     }
 
@@ -175,11 +197,11 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
         }
     }
 
-    public async ValueTask<int> RemovePointsAsync(
-        int nodeId, Point point, CancellationToken ct)
+    public async ValueTask<RemoveResults> RemovePointsAsync(
+        int nodeId, Point point, bool _, CancellationToken ct)
     {
         var points = this.nodePoints[nodeId];
-        var count = 0;
+        var removed = 0;
 
         for (var index = points.Count - 1; index >= 0; index--)
         {
@@ -187,20 +209,18 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
             if (point.Equals(entry.Key))
             {
                 points.RemoveAt(index);
-                count++;
+                removed++;
             }
         }
         
-        // TODO: rebalance
-
-        return count;
+        return new(removed, points.Count);
     }
 
-    public async ValueTask<int> RemoveBoundAsync(
-        int nodeId, Bound bound, CancellationToken ct)
+    public async ValueTask<RemoveResults> RemoveBoundAsync(
+        int nodeId, Bound bound, bool _, CancellationToken ct)
     {
         var points = this.nodePoints[nodeId];
-        var count = 0;
+        var removed = 0;
 
         for (var index = points.Count - 1; index >= 0; index--)
         {
@@ -208,12 +228,10 @@ public sealed class CollectionQuadTreeProvider<TValue> : IDataProvider<TValue, i
             if (bound.IsWithin(entry.Key))
             {
                 points.RemoveAt(index);
-                count++;
+                removed++;
             }
         }
-        
-        // TODO: rebalance
 
-        return count;
+        return new(removed, points.Count);
     }
 }

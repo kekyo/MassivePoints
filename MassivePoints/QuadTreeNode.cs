@@ -11,13 +11,12 @@ namespace MassivePoints;
 
 public sealed class QuadTreeNode<TNodeId>
 {
+    private TNodeId[]? childIds;
+    
     public readonly TNodeId TopLeftId;
     public readonly TNodeId TopRightId;
     public readonly TNodeId BottomLeftId;
     public readonly TNodeId BottomRightId;
-
-    public TNodeId[] ChildIds =>
-        new[] { this.TopLeftId, TopRightId, BottomLeftId, BottomRightId };
     
     public QuadTreeNode(
         TNodeId topLeftNodeId, TNodeId topRightNodeId, TNodeId bottomLeftNodeId, TNodeId bottomRightNodeId)
@@ -26,6 +25,18 @@ public sealed class QuadTreeNode<TNodeId>
         this.TopRightId = topRightNodeId;
         this.BottomLeftId = bottomLeftNodeId;
         this.BottomRightId = bottomRightNodeId;
+    }
+
+    public TNodeId[] ChildIds
+    {
+        get
+        {
+            if (this.childIds == null)
+            {
+                this.childIds = new[] { this.TopLeftId, TopRightId, BottomLeftId, BottomRightId };
+            }
+            return this.childIds;
+        }
     }
 
     public override string ToString() =>
