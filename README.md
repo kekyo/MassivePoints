@@ -173,20 +173,20 @@ foreach (KeyValuePair<Point, string> entry in
 ### Streaming lookup
 
 MassivePoints supported `IAsyncEnumerable<T>` asynchronous streaming.
-Use `EnumerableBoundAsync()`:
+Use `EnumerateBoundAsync()`:
 
 ```csharp
 // Extract values on asynchronous iterator.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 
 await foreach (KeyValuePair<Point, string> entry in
-    quadTree.EnumerableBoundAsync(targetBound))
+    quadTree.EnumerateBoundAsync(targetBound))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
 ```
 
-Because of the streaming process, `EnumerableBoundAsync()` can enumerate even a huge set of coordinate points in the result without any problem.
+Because of the streaming process, `EnumerateBoundAsync()` can enumerate even a huge set of coordinate points in the result without any problem.
 However, be aware that its performance is not as good as that of `LookupBoundAsync()`.
 
 ### Remove coordinate points
@@ -244,6 +244,7 @@ Depending on the backend data provider, the updates may be undone.
 * Supports F# friendly interfaces.
 * Supports 3D or Multi-dimensionals.
 * Improved concurrency.
+* Added more useful helper methods.
 
 ## License
 
