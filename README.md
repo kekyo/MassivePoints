@@ -37,14 +37,18 @@ var count = 1000000;
 var r = new Random();
 for (var index = 0; index < count; index++)
 {
-    Point point = new Point(r.Next(0, width - 1), r.Next(0, height - 1));
-    await quadTree.AddAsync(point, $"Point{index}");
+    double x = r.Next(0, width - 1);
+    double y = r.Next(0, height - 1);
+    await quadTree.AddAsync((x, y), $"Point{index}");
 }
 
 // Extract values by specifying coordinate range.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+double x = 30000.0;
+double y = 40000.0;
+double width = 35000.0;
+double height = 23000.0;
 foreach (KeyValuePair<Point, string> entry in
-    await quadTree.LookupBoundAsync(targetBound))
+    await quadTree.LookupBoundAsync((x, y, width, height)))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
@@ -57,6 +61,7 @@ It has the following features:
 * Completely separates between QuadTree controller and data provider.
   * Builtin data providers: In-memory and ADO.NET.
 * Fully asynchronous operation.
+* Supported asynchronous streaming lookup (`IAsyncEnumerable<T>`).
 
 ### Target .NET platforms
 
@@ -85,9 +90,10 @@ IQuadTree<string> quadTree = QuadTree.Factory.Create<string>(width, height);
 
 ### Create QuadTree with ADO.NET provider
 
-This sample code uses SQLite ADO.NET provider.
+This sample code uses SQLite ADO.NET provider: [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
 
-[Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
+TODO: The steps for using the ADO.NET data provider are possibly subject to change.
+
 
 ```csharp
 using MassivePoints;
@@ -108,7 +114,7 @@ await connection.OpenAsync(default);
 double width = 100000.0;
 double height = 100000.0;
 var provider = QuadTree.Factory.CreateProvider<string>(
-    connection, "test", (100000, 100000));
+    connection, "test", new Bound(width, height));
 
 // Setup the SQLite tables to be used with QuadTree.
 await provider.CreateSQLiteTablesAsync(false, default);
@@ -135,13 +141,15 @@ for (var index = 0; index < count; index++)
 
 ### Lookup coordinate points
 
-With exact coordinate point with `LookupPointAsync()`:
+With exact coordinate point by `LookupPointAsync()`:
 
 ```csharp
 // Extract values by specifying a coordinate point.
 // There is a possibility that multiple values
 // with the same coordinates will be extracted.
+
 Point targetPoint = new Point(31234.0, 45678.0);
+
 foreach (KeyValuePair<Point, string> entry in
     await quadTree.LookupPointAsync(targetPoint))
 {
@@ -149,11 +157,12 @@ foreach (KeyValuePair<Point, string> entry in
 }
 ```
 
-With coordinate range with `LookupBoundAsync()`:
+With coordinate range by `LookupBoundAsync()`:
 
 ```csharp
 // Extract values by specifying coordinate range.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+
 foreach (KeyValuePair<Point, string> entry in
     await quadTree.LookupBoundAsync(targetBound))
 {
@@ -161,55 +170,55 @@ foreach (KeyValuePair<Point, string> entry in
 }
 ```
 
-### Looking up with streaming
+### Streaming lookup
 
-MassivePoints supported `IAsyncEnumerable<T>` streaming.
+MassivePoints supported `IAsyncEnumerable<T>` asynchronous streaming.
 Use `EnumerableBoundAsync()`:
 
 ```csharp
 // Extract values on asynchronous iterator.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+
 await foreach (KeyValuePair<Point, string> entry in
     quadTree.EnumerableBoundAsync(targetBound))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
 ```
+
+Because of the streaming process, `EnumerableBoundAsync()` can enumerate even a huge set of coordinate points in the result without any problem.
+However, be aware that its performance is not as good as that of `LookupBoundAsync()`.
 
 ### Remove coordinate points
 
-With exact coordinate point with `RemovePointsAsync()`:
+With exact coordinate point by `RemovePointsAsync()`:
 
 ```csharp
-// Extract values on asynchronous iterator.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
-await foreach (KeyValuePair<Point, string> entry in
-    quadTree.EnumerableBoundAsync(targetBound))
-{
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
-}
+// Remove exact coordinate point.
+Point targetPoint = new Point(31234.0, 45678.0);
+
+int removed = await quadTree.RemovePointsAsync(targetPoint);
 ```
 
-With coordinate range with `RemoveBoundAsync()`:
+With coordinate range by `RemoveBoundAsync()`:
 
 ```csharp
-// Extract values on asynchronous iterator.
+// Remove coordinate range.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
-await foreach (KeyValuePair<Point, string> entry in
-    quadTree.EnumerableBoundAsync(targetBound))
-{
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
-}
+
+long removed = await quadTree.RemoveBoundAsync(targetBound);
 ```
 
 ### Scoped session
 
 TODO:
 
+You should use `BeginSessionAsync()` to protect QuadTree indexes
+when used in multi-threaded and/or multiple asynchronous processing:
+
 ```csharp
-// Begin a session.
-await using (var session =
-    await quadTree.BeginSessionAsync(true, default))
+// Begin a update session.
+await using (var session = await quadTree.BeginSessionAsync(true))
 {
     // (Manipulation for QuadTree)
 
@@ -218,6 +227,13 @@ await using (var session =
 }
 ```
 
+The argument `willUpdate` indicates whether coordinate points will be added or removed during this session.
+If `true`, an exclusive lock is applied, so it is advisable to keep the number of operations to a minimum when running concurrently.
+
+Also, be sure to call `FinishAsync()` after any updates.
+Depending on the backend data provider, the updates may be undone.
+
+
 ----
 
 ## TODO
@@ -225,6 +241,9 @@ await using (var session =
 * When coordinates are removed, the index reduction process is not performed.
 * Will fail when multiple read/write coordinates with overlapped asynchronous operations.
 * Additional xml comment and documents.
+* Supports F# friendly interfaces.
+* Supports 3D or Multi-dimensionals.
+* Improved concurrency.
 
 ## License
 
