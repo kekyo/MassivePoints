@@ -25,9 +25,9 @@ public enum SQLiteJournalModes
 
 public static class DbQuadTreeProviderExtension
 {
-    private static string GetSQLiteTypeName<TKey>()
+    private static string GetSQLiteTypeName<TValue>()
     {
-        var type = typeof(TKey);
+        var type = typeof(TValue);
         if (type.IsEnum)
         {
             return "INTEGER";
@@ -55,9 +55,9 @@ public static class DbQuadTreeProviderExtension
         };
     }
     
-    private static string GetSQLiteTypeAttribute<TKey>()
+    private static string GetSQLiteTypeAttribute<TValue>()
     {
-        var type = typeof(TKey);
+        var type = typeof(TValue);
         if (type.IsValueType && Nullable.GetUnderlyingType(type) == null)
         {
             return "NOT NULL";
@@ -70,7 +70,7 @@ public static class DbQuadTreeProviderExtension
     
     public static async ValueTask CreateSQLiteTablesAsync<TValue>(
         this DbQuadTreeProvider<TValue> provider,
-        bool dropToCreate, CancellationToken ct)
+        bool dropToCreate, CancellationToken ct = default)
     {
         if (dropToCreate)
         {
@@ -121,7 +121,7 @@ public static class DbQuadTreeProviderExtension
         }
 
         using (var command = provider.CreateCommand(
-           $"INSERT INTO {provider.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (0,NULL,NULL,NULL,NULL)"))
+            $"INSERT INTO {provider.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (0,NULL,NULL,NULL,NULL)"))
         {
             if (await command.ExecuteNonQueryAsync(ct) != 1)
             {
@@ -132,10 +132,10 @@ public static class DbQuadTreeProviderExtension
     
     public static async ValueTask SetSQLiteJournalModeAsync<TValue>(
         this DbQuadTreeProvider<TValue> provider,
-        SQLiteJournalModes journalMode, CancellationToken ct)
+        SQLiteJournalModes journalMode, CancellationToken ct = default)
     {
         using (var command = provider.CreateCommand(
-           $"PRAGMA journal_mode={journalMode.ToString().ToUpperInvariant()}"))
+            $"PRAGMA journal_mode={journalMode.ToString().ToUpperInvariant()}"))
         {
             if (await command.ExecuteNonQueryAsync(ct) < 0)
             {
