@@ -1,8 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassivePoints", "MassivePoints\MassivePoints.csproj", "{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}"
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassivePoints", "MassivePoints\MassivePoints.csproj", "{062BABD2-B0D2-4F8E-8959-4E63DB575A5D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassivePointsTests", "MassivePointsTests\MassivePointsTests.csproj", "{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassivePointsTests", "MassivePointsTests\MassivePointsTests.csproj", "{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EEF81079-8929-4513-9CF6-9B1139607D54}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		build-nupkg.sh = build-nupkg.sh
+		Directory.Build.props = Directory.Build.props
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,5 +30,8 @@ Global
 		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EA8CF319-48DF-4EF6-B3B2-6BCDCD40D8F5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
