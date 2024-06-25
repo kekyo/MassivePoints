@@ -197,7 +197,7 @@ With exact coordinate point by `RemovePointsAsync()`:
 // Remove exact coordinate point.
 Point targetPoint = new Point(31234.0, 45678.0);
 
-int removed = await quadTree.RemovePointsAsync(targetPoint);
+long removed = await quadTree.RemovePointsAsync(targetPoint);
 ```
 
 With coordinate range by `RemoveBoundAsync()`:

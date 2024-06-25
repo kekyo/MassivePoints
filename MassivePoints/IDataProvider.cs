@@ -17,18 +17,18 @@ namespace MassivePoints;
 public readonly struct RemoveResults
 {
     public readonly long Removed;
-    public readonly long Remains;
+    public readonly int RemainsHint;
 
-    public RemoveResults(long removed, long remains)
+    public RemoveResults(long removed, int remainsHint)
     {
         this.Removed = removed;
-        this.Remains = remains;
+        this.RemainsHint = remainsHint;
     }
 
-    public void Deconstruct(out long removed, out long remains)
+    public void Deconstruct(out long removed, out int remainsHint)
     {
         removed = this.Removed;
-        remains = this.Remains;
+        remainsHint = this.RemainsHint;
     }
 }
 

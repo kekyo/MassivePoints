@@ -250,7 +250,7 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<long> GetPointCountAsync(
+    private async ValueTask<int> GetPointCountAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -263,17 +263,23 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
 
         var childIds = node!.ChildIds;
         var childBounds = nodeBound.ChildBounds;
-        var remains = 0L;
+        var remainsHint = 0;
 
         for (var index = 0; index < childBounds.Length; index++)
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
             Debug.Assert(!childBound.IsWithin(targetPoint));
-            remains += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+            remainsHint += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+
+            // HACK: If remains is exceeded, this node is terminated as there is no further need to examine it.
+            if (remainsHint >= this.provider.MaxNodePoints)
+            {
+                break;
+            }
         }
 
-        return remains;
+        return remainsHint;
     }
     
     private async ValueTask<RemoveResults> RemovePointsAsync(
@@ -295,7 +301,7 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         if (performShrinking)
         {
             var removed = 0L;
-            var remains = 0L;
+            var remainsHint = 0;
 
             for (var index = 0; index < childBounds.Length; index++)
             {
@@ -306,19 +312,23 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
                     var (rmd, rms) = await this.RemovePointsAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
                     removed += rmd;
-                    remains += rms;
+                    remainsHint += rms;
                 }
                 else
                 {
-                    remains += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+                    // HACK: If remains is exceeded, this node is ignored as it does not need to be inspected further.
+                    if (remainsHint < this.provider.MaxNodePoints)
+                    {
+                        remainsHint += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+                    }
                 }
             }
 
-            if (remains < this.provider.MaxNodePoints)
+            if (remainsHint < this.provider.MaxNodePoints)
             {
                 await this.provider.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
             }
-            return new(removed, remains);
+            return new(removed, remainsHint);
         }
         else
         {
@@ -373,7 +383,7 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         if (performShrinking)
         {
             var removed = 0L;
-            var remains = 0L;
+            var remainsHint = 0;
 
             for (var index = 0; index < childBounds.Length; index++)
             {
@@ -384,24 +394,27 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
                     var (rmd, rms) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
                     removed += rmd;
-                    remains += rms;
+                    remainsHint += rms;
                 }
                 else
                 {
-                    remains += await this.provider.GetPointCountAsync(childId, ct);
+                    // HACK: If remains is exceeded, this node is ignored as it does not need to be inspected further.
+                    if (remainsHint < this.provider.MaxNodePoints)
+                    {
+                        remainsHint += await this.provider.GetPointCountAsync(childId, ct);
+                    }
                 }
             }
 
-            if (remains < this.provider.MaxNodePoints)
+            if (remainsHint < this.provider.MaxNodePoints)
             {
                 await this.provider.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
             }
-            return new(removed, remains);
+            return new(removed, remainsHint);
         }
         else
         {
             var removed = 0L;
-            var remains = 0L;
 
             for (var index = 0; index < childBounds.Length; index++)
             {
@@ -409,14 +422,13 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
                 var childBound = childBounds[index];
                 if (childBound.IsIntersection(targetBound))
                 {
-                    var (rmd, rms) = await this.RemoveBoundAsync(
+                    var (rmd, _) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
                     removed += rmd;
-                    remains += rms;
                 }
             }
 
-            return new(removed, remains);
+            return new(removed, -1);
         }
     }
 
