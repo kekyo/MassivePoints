@@ -11,13 +11,10 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 
 namespace MassivePoints.Data;
 
@@ -25,7 +22,7 @@ namespace MassivePoints.Data;
 /// Non volatile QuadTree ADO.NET data provider.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
+public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly DbConnection connection;
     
@@ -42,51 +39,51 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
     private readonly DbCommand deletePointCommand;
     private readonly DbCommand deleteBoundCommand;
 
-    public DbQuadTreeProvider(
+    public DbDataProvider(
         DbConnection connection,
-        string prefix,
+        string symbol_prefix,
         Bound entire,
         int maxNodePoints = 1024)
     {
         this.connection = connection;
         this.Entire = entire;
         this.MaxNodePoints = maxNodePoints;
-        this.Prefix = prefix;
+        this.Prefix = symbol_prefix;
 
         this.selectNodeCommand = this.CreateCommand(
-            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {prefix}_nodes WHERE id=@id",
+            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {symbol_prefix}_nodes WHERE id=@id",
             "@id");
         this.selectPointCountCommand = this.CreateCommand(
-            $"SELECT COUNT(*) FROM {prefix}_node_points WHERE node_id=@node_id",
+            $"SELECT COUNT(*) FROM {symbol_prefix}_node_points WHERE node_id=@node_id",
             "@node_id");
         this.insertPointCommand = this.CreateCommand(
-            $"INSERT INTO {prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
+            $"INSERT INTO {symbol_prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
             "@node_id", "@x", "@y", "@value");
         this.selectNodeMaxIdCommand = this.CreateCommand(
-            $"SELECT MAX(id) FROM {prefix}_nodes");
+            $"SELECT MAX(id) FROM {symbol_prefix}_nodes");
         this.updateNodeCommand = this.CreateCommand(
-            $"UPDATE {prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
+            $"UPDATE {symbol_prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.insertNodeCommand = this.CreateCommand(
-            $"INSERT INTO {prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
+            $"INSERT INTO {symbol_prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.deleteNodeCommand = this.CreateCommand(
-            $"DELETE FROM {prefix}_nodes WHERE id=@id",
+            $"DELETE FROM {symbol_prefix}_nodes WHERE id=@id",
             "@id");
         this.updatePointsCommand = this.CreateCommand(
-            $"UPDATE {prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"UPDATE {symbol_prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1", "@to_node_id");
         this.selectPointCommand = this.CreateCommand(
-            $"SELECT x,y,[value] FROM {prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"SELECT x,y,[value] FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.selectPointsCommand = this.CreateCommand(
-            $"SELECT x,y,[value] FROM {prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"SELECT x,y,[value] FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1");
         this.deletePointCommand = this.CreateCommand(
-            $"DELETE FROM {prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"DELETE FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.deleteBoundCommand = this.CreateCommand(
-            $"DELETE FROM {prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"DELETE FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1");
     }
 
@@ -182,7 +179,7 @@ public sealed class DbQuadTreeProvider<TValue> : IDataProvider<TValue, long>
         this.deletePointCommand.Transaction = transaction;
         this.deleteBoundCommand.Transaction = transaction;
 
-        return new DbQuadTreeSession(transaction);
+        return new DbDataSession(transaction);
     }
 
     private static async ValueTask<T> ExecuteRead1Async<T>(

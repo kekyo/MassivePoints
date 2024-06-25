@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System.Data.Common;
-using MassivePoints.Collections;
+using MassivePoints.InMemory;
 using MassivePoints.Data;
 
 // Parameter has no matching param tag in the XML comment (but other parameters do)
@@ -38,7 +38,7 @@ public static class QuadTreeFactoryExtension
     /// <param name="height">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
-    public static CollectionQuadTreeProvider<TValue> CreateProvider<TValue>(
+    public static InMemoryDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
         double width, double height, int maxNodePoints = 65536) =>
         new((width, height), maxNodePoints);
@@ -50,7 +50,7 @@ public static class QuadTreeFactoryExtension
     /// <param name="entire">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
-    public static CollectionQuadTreeProvider<TValue> CreateProvider<TValue>(
+    public static InMemoryDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
         Bound entire, int maxNodePoints = 65536) =>
         new(entire, maxNodePoints);
@@ -60,14 +60,14 @@ public static class QuadTreeFactoryExtension
     /// </summary>
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="connection">Database connection</param>
-    /// <param name="prefix">Database metadata symbol prefix</param>
+    /// <param name="symbol_prefix">Database metadata symbol prefix</param>
     /// <param name="entire">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
-    public static DbQuadTreeProvider<TValue> CreateProvider<TValue>(
+    public static DbDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
-        DbConnection connection, string prefix, Bound entire, int maxNodePoints = 1024) =>
-        new(connection, prefix, entire, maxNodePoints);
+        DbConnection connection, string symbol_prefix, Bound entire, int maxNodePoints = 1024) =>
+        new(connection, symbol_prefix, entire, maxNodePoints);
 
     /// <summary>
     /// Create QuadTree with in-memory data provider.
@@ -80,7 +80,7 @@ public static class QuadTreeFactoryExtension
         this QuadTreeFactory _,
         double width, double height, int maxNodePoints = 65536) =>
         new QuadTree<TValue, int>(
-            new CollectionQuadTreeProvider<TValue>((width, height), maxNodePoints));
+            new InMemoryDataProvider<TValue>((width, height), maxNodePoints));
 
     /// <summary>
     /// Create QuadTree.

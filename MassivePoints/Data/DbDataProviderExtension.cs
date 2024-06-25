@@ -23,7 +23,7 @@ public enum SQLiteJournalModes
     Off,
 }
 
-public static class DbQuadTreeProviderExtension
+public static class DbDataProviderExtension
 {
     private static string GetSQLiteTypeName<TValue>()
     {
@@ -69,7 +69,7 @@ public static class DbQuadTreeProviderExtension
     }
     
     public static async ValueTask CreateSQLiteTablesAsync<TValue>(
-        this DbQuadTreeProvider<TValue> provider,
+        this DbDataProvider<TValue> provider,
         bool dropToCreate, CancellationToken ct = default)
     {
         if (dropToCreate)
@@ -131,7 +131,7 @@ public static class DbQuadTreeProviderExtension
     }
     
     public static async ValueTask SetSQLiteJournalModeAsync<TValue>(
-        this DbQuadTreeProvider<TValue> provider,
+        this DbDataProvider<TValue> provider,
         SQLiteJournalModes journalMode, CancellationToken ct = default)
     {
         using (var command = provider.CreateCommand(

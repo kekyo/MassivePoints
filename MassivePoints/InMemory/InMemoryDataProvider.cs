@@ -19,13 +19,13 @@ using Nito.AsyncEx;
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
 
-namespace MassivePoints.Collections;
+namespace MassivePoints.InMemory;
 
 /// <summary>
 /// Volatile in-memory QuadTree data provider.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public sealed class CollectionQuadTreeProvider<TValue> :
+public sealed class InMemoryDataProvider<TValue> :
     IDataProvider<TValue, int>
 {
     private readonly AsyncReaderWriterLock locker = new();
@@ -33,7 +33,7 @@ public sealed class CollectionQuadTreeProvider<TValue> :
     private readonly Dictionary<int, List<KeyValuePair<Point, TValue>>> nodePoints = new();
     private int maxNodeId = 0;
 
-    public CollectionQuadTreeProvider(
+    public InMemoryDataProvider(
         Bound entire,
         int maxNodePoints = 65536)
     {
@@ -73,7 +73,7 @@ public sealed class CollectionQuadTreeProvider<TValue> :
     {
         var disposer = await (willUpdate ?
             this.locker.WriterLockAsync(ct) : this.locker.ReaderLockAsync(ct));
-        return new CollectionQuadTreeSession(disposer);
+        return new InMemoryDataSession(disposer);
     }
 
     public ValueTask<QuadTreeNode<int>?> GetNodeAsync(

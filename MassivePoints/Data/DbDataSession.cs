@@ -13,11 +13,11 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
-internal sealed class DbQuadTreeSession : ISession
+internal sealed class DbDataSession : ISession
 {
     private readonly DbTransaction transaction;
 
-    public DbQuadTreeSession(DbTransaction transaction) =>
+    public DbDataSession(DbTransaction transaction) =>
         this.transaction = transaction;
 
     public ValueTask DisposeAsync() =>

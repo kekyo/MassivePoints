@@ -10,13 +10,13 @@
 using System;
 using System.Threading.Tasks;
 
-namespace MassivePoints.Collections;
+namespace MassivePoints.InMemory;
 
-internal sealed class CollectionQuadTreeSession : ISession
+internal sealed class InMemoryDataSession : ISession
 {
     private readonly IDisposable disposer;
 
-    public CollectionQuadTreeSession(IDisposable disposer) =>
+    public InMemoryDataSession(IDisposable disposer) =>
         this.disposer = disposer;
 
     public ValueTask DisposeAsync()
