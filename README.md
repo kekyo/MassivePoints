@@ -252,12 +252,11 @@ long removed = await quadTree.RemoveBoundAsync(
 
 ## TODO
 
-* Will fail when multiple read/write coordinates with overlapped asynchronous operations.
 * Additional xml comment and documents.
 * Supports F# friendly interfaces.
 * Supports 3D or Multi-dimensionals.
-* Improved concurrency.
 * Added more useful helper methods.
+* Bulk insertion.
 
 ## License
 
@@ -266,6 +265,7 @@ Apache-v2
 ## History
 
 * 0.9.0:
+  * Improved concurrency.
   * Implemented index shrinking.
 * 0.8.0:
   * Initial release.

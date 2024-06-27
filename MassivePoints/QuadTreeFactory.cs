@@ -7,6 +7,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.Data.Common;
 using MassivePoints.InMemory;
 using MassivePoints.Data;
@@ -59,15 +60,15 @@ public static class QuadTreeFactoryExtension
     /// Create ADO.NET data provider.
     /// </summary>
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-    /// <param name="connection">Database connection</param>
+    /// <param name="connectionFactory">Database connection factory</param>
     /// <param name="symbol_prefix">Database metadata symbol prefix</param>
     /// <param name="entire">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
     public static DbDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
-        DbConnection connection, string symbol_prefix, Bound entire, int maxNodePoints = 1024) =>
-        new(connection, symbol_prefix, entire, maxNodePoints);
+        Func<DbConnection> connectionFactory, string symbol_prefix, Bound entire, int maxNodePoints = 1024) =>
+        new(connectionFactory, symbol_prefix, entire, maxNodePoints);
 
     /// <summary>
     /// Create QuadTree with in-memory data provider.
