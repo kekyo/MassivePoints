@@ -55,7 +55,7 @@ double height = 23000.0;
 foreach (PointItem<string> entry in
     await session.LookupBoundAsync(new Bound(x, y, width, height)))
 {
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
+    Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
 ```
 
@@ -176,7 +176,7 @@ var r = new Random();
 
 await session.InsertPointsAsync(
     Enumerable.Range(0, count).
-    Select(_ => Point.Create(
+    Select(_ => PointItem.Create(
         r.Next(0, width - 1), r.Next(0, height - 1), $"Point{index}")));
 ```
 
@@ -194,7 +194,7 @@ Point targetPoint = new Point(31234.0, 45678.0);
 foreach (PointItem<string> entry in
     await session.LookupPointAsync(targetPoint))
 {
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
+    Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
 ```
 
@@ -207,7 +207,7 @@ Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 foreach (PointItem<string> entry in
     await session.LookupBoundAsync(targetBound))
 {
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
+    Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
 ```
 
@@ -223,7 +223,7 @@ Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 await foreach (PointItem<string> entry in
     session.EnumerateBoundAsync(targetBound))
 {
-    Console.WriteLine($"{entry.Key}: {entry.Value}");
+    Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
 ```
 
