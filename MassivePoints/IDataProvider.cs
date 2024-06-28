@@ -8,17 +8,17 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace MassivePoints;
 
 /// <summary>
-/// QuadTree abstraction interface.
+/// QuadTree backend data provider interface.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public interface IQuadTree<TValue>
+/// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
+public interface IDataProvider<TValue, TNodeId>
 {
     /// <summary>
     /// Begin a session.
@@ -26,6 +26,6 @@ public interface IQuadTree<TValue>
     /// <param name="willUpdate">True if possibility changes will be made during the session</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>The session</returns>
-    ValueTask<IQuadTreeSession<TValue>> BeginSessionAsync(
-        bool willUpdate, CancellationToken ct = default);
+    ValueTask<IDataProviderSession<TValue, TNodeId>> BeginSessionAsync(
+        bool willUpdate, CancellationToken ct);
 }

@@ -37,17 +37,24 @@ public readonly struct Point : IEquatable<Point>
         }
     }
 
-    public void Deconstruct(
-        out double x,
-        out double y)
-    {
-        x = this.X;
-        y = this.Y;
-    }
-
     public override string ToString() =>
         $"[{this.X},{this.Y}]";
 
     public static implicit operator Point((double x, double y) point) =>
         new(point.x, point.y);
+
+    public static Point Create(double x, double y) =>
+        new(x, y);
+}
+
+public static class PointExtension
+{
+    public static void Deconstruct(
+        this Point self,
+        out double x,
+        out double y)
+    {
+        x = self.X;
+        y = self.Y;
+    }
 }

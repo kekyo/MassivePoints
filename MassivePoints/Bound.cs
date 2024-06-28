@@ -14,7 +14,7 @@ namespace MassivePoints;
 /// <summary>
 /// This is a structure that defines a coordinate range.
 /// </summary>
-public sealed class Bound
+public readonly struct Bound
 {
     //         - ------ X ------> +
     // -  +-------------+-------------+
@@ -26,31 +26,26 @@ public sealed class Bound
     // |  | BottomLeft  | BottomRight |
     // v  |             |             |
     // +  +-------------+-------------+
-
-    private Bound? topLeft;
-    private Bound? topRight;
-    private Bound? bottomLeft;
-    private Bound? bottomRight;
     
     /// <summary>
     /// X
     /// </summary>
-    public readonly double X;
+    public double X { get; }
     
     /// <summary>
     /// Y
     /// </summary>
-    public readonly double Y;
-    
+    public double Y { get; }
+
     /// <summary>
     /// Range width
     /// </summary>
-    public readonly double Width;
+    public double Width { get; }
 
     /// <summary>
     /// Range height
     /// </summary>
-    public readonly double Height;
+    public double Height { get; }
 
     public Bound(double width, double height)
     {
@@ -77,123 +72,18 @@ public sealed class Bound
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound TopLeft
+    public Bound[] ChildBounds
     {
         get
         {
-            if (this.topLeft == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.topLeft = new(this.X, this.Y, wh, hh);
-            }
-            return this.topLeft;
+            var wh = this.Width / 2;
+            var hh = this.Height / 2;
+            var topLeft = new Bound(this.X, this.Y, wh, hh);
+            var topRight = new Bound(this.X + wh, this.Y, wh, hh);
+            var bottomLeft = new Bound(this.X, this.Y + hh, wh, hh);
+            var bottomRight = new Bound(this.X + wh, this.Y + hh, wh, hh);
+            return new[] { topLeft, topRight, bottomLeft, bottomRight };
         }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound TopRight
-    {
-        get
-        {
-            if (this.topRight == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.topRight = new(this.X + wh, this.Y, wh, hh);
-            }
-            return this.topRight;
-        }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound BottomLeft
-    {
-        get
-        {
-            if (this.bottomLeft == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.bottomLeft = new(this.X, this.Y + hh, wh, hh);
-            }
-            return this.bottomLeft;
-        }
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound BottomRight
-    {
-        get
-        {
-            if (this.bottomRight == null)
-            {
-                var wh = this.Width / 2;
-                var hh = this.Height / 2;
-                this.bottomRight = new(this.X + wh, this.Y + hh, wh, hh);
-            }
-            return this.bottomRight;
-        }
-    }
-
-    /// <summary>
-    /// Checks whether the specified coordinate point is within this range.
-    /// </summary>
-    /// <param name="x">X</param>
-    /// <param name="y">Y</param>
-    /// <returns>True is within.</returns>
-    public bool IsWithin(double x, double y) =>
-        this.X <= x && x < (this.X + this.Width) &&
-        this.Y <= y && y < (this.Y + this.Height);
-
-    /// <summary>
-    /// Checks whether the specified coordinate point is within this range.
-    /// </summary>
-    /// <param name="point">A coordinate point</param>
-    /// <returns>True when within.</returns>
-    public bool IsWithin(Point point) =>
-        this.IsWithin(point.X, point.Y);
-
-    /// <summary>
-    /// Checks whether the specified range is intersects this range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <returns>True when intersected.</returns>
-    public bool IsIntersection(Bound bound)
-    {
-        var lx1 = this.X;
-        var lx2 = this.X + this.Width;
-        var rx1 = bound.X;
-        var rx2 = bound.X + bound.Width;
-
-        if (lx1 > rx2 || rx1 > lx2)
-        {
-            return false;
-        }
-
-        var ly1 = this.Y;
-        var ly2 = this.Y + this.Height;
-        var ry1 = bound.Y;
-        var ry2 = bound.Y + bound.Height;
-
-        if (ly1 > ry2 || ry1 > ly2)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    public void Deconstruct(
-        out double x,
-        out double y,
-        out double width,
-        out double height)
-    {
-        x = this.X;
-        y = this.Y;
-        width = this.Width;
-        height = this.Height;
     }
 
     public override string ToString() =>
@@ -207,4 +97,84 @@ public sealed class Bound
 
     public static implicit operator Bound((double x, double y, double width, double height) bound) =>
         new(bound.x, bound.y, bound.width, bound.height);
+
+    public static Bound Create(double width, double height) =>
+        new(width, height);
+
+    public static Bound Create(Point point, double width, double height) =>
+        new(point, width, height);
+
+    public static Bound Create(double x, double y, double width, double height) =>
+        new(x, y, width, height);
+}
+
+public static class BoundExtension
+{
+    public static void Deconstruct(
+        this Bound self,
+        out double x,
+        out double y,
+        out double width,
+        out double height)
+    {
+        x = self.X;
+        y = self.Y;
+        width = self.Width;
+        height = self.Height;
+    }
+
+    /// <summary>
+    /// Checks whether the specified coordinate point is within this range.
+    /// </summary>
+    /// <param name="self">`Bound`</param>
+    /// <param name="point">A coordinate point</param>
+    /// <returns>True when within.</returns>
+    public static bool IsWithin(
+        this Bound self, Point point) =>
+        self.X <= point.X && point.X < (self.X + self.Width) &&
+        self.Y <= point.Y && point.Y < (self.Y + self.Height);
+
+    /// <summary>
+    /// Checks whether the specified coordinate point is within this range.
+    /// </summary>
+    /// <param name="self">`Bound`</param>
+    /// <param name="x">X</param>
+    /// <param name="y">Y</param>
+    /// <returns>True is within.</returns>
+    public static bool IsWithin(
+        this Bound self, double x, double y) =>
+        self.X <= x && x < (self.X + self.Width) &&
+        self.Y <= y && y < (self.Y + self.Height);
+
+    /// <summary>
+    /// Checks whether the specified range is intersects this range.
+    /// </summary>
+    /// <param name="self">`Bound`</param>
+    /// <param name="bound">Coordinate range</param>
+    /// <returns>True when intersected.</returns>
+    public static bool IsIntersection(
+        this Bound self, Bound bound)
+    {
+        var lx1 = self.X;
+        var lx2 = self.X + self.Width;
+        var rx1 = bound.X;
+        var rx2 = bound.X + bound.Width;
+
+        if (lx1 > rx2 || rx1 > lx2)
+        {
+            return false;
+        }
+
+        var ly1 = self.Y;
+        var ly2 = self.Y + self.Height;
+        var ry1 = bound.Y;
+        var ry2 = bound.Y + bound.Height;
+
+        if (ly1 > ry2 || ry1 > ly2)
+        {
+            return false;
+        }
+
+        return true;
+    }
 }
