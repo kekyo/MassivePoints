@@ -27,8 +27,6 @@ namespace MassivePoints;
 
 internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 {
-    private const int bulkInsertBlockSize = 100000;
-
     private readonly IDataProviderSession<TValue, TNodeId> providerSession;
 
     internal QuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
@@ -106,6 +104,7 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
         TNodeId nodeId,
         Bound nodeBound,
         IReadOnlyArray<PointItem<TValue>> points,
+        int bulkInsertBlockSize,
         CancellationToken ct)
     {
         int offset = 0;
@@ -148,7 +147,7 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
                 var childId = childIds[index];
                 var childBound = childBounds[index];
                 await this.InsertPointsAsync(
-                    childId, childBound, list, ct);
+                    childId, childBound, list, bulkInsertBlockSize, ct);
             }
         }
     }
@@ -157,12 +156,13 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
         TNodeId nodeId,
         Bound nodeBound,
         IReadOnlyArray<PointItem<TValue>> points,
+        int bulkInsertBlockSize,
         CancellationToken ct)
     {
         if (points.Count < bulkInsertBlockSize)
         {
             await this.InsertPointsCoreAsync(
-                nodeId, nodeBound, points, ct);
+                nodeId, nodeBound, points, bulkInsertBlockSize, ct);
         }
         else
         {
@@ -173,14 +173,22 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
                     await this.InsertPointsCoreAsync(
-                        this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
+                        this.providerSession.RootId,
+                        this.providerSession.Entire,
+                        fixedList,
+                        bulkInsertBlockSize,
+                        ct);
                     fixedList.Clear();
                 }
             }
             if (fixedList.Count >= 1)
             {
                 await this.InsertPointsCoreAsync(
-                    nodeId, nodeBound, fixedList, ct);
+                    nodeId,
+                    nodeBound,
+                    fixedList,
+                    bulkInsertBlockSize,
+                    ct);
             }
         }
     }
@@ -189,9 +197,12 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
     /// Bulk insert coordinate points.
     /// </summary>
     /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     public async ValueTask InsertPointsAsync(
-        IEnumerable<PointItem<TValue>> points, CancellationToken ct = default)
+        IEnumerable<PointItem<TValue>> points,
+        int bulkInsertBlockSize = 100000,
+        CancellationToken ct = default)
     {
         if (points is IReadOnlyList<PointItem<TValue>> pointList &&
             pointList.Count < bulkInsertBlockSize)
@@ -200,6 +211,7 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
                 this.providerSession.RootId,
                 this.providerSession.Entire,
                 new ReadOnlyArray<PointItem<TValue>>(pointList),
+                bulkInsertBlockSize,
                 ct);
         }
         else
@@ -211,14 +223,22 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
                     await this.InsertPointsCoreAsync(
-                        this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
+                        this.providerSession.RootId,
+                        this.providerSession.Entire,
+                        fixedList,
+                        bulkInsertBlockSize,
+                        ct);
                     fixedList.Clear();
                 }
             }
             if (fixedList.Count >= 1)
             {
                 await this.InsertPointsCoreAsync(
-                    this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
+                    this.providerSession.RootId,
+                    this.providerSession.Entire,
+                    fixedList,
+                    bulkInsertBlockSize,
+                    ct);
             }
         }
     }
@@ -229,9 +249,12 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
     /// Bulk insert coordinate points.
     /// </summary>
     /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     public async ValueTask InsertPointsAsync(
-        IAsyncEnumerable<PointItem<TValue>> points, CancellationToken ct = default)
+        IAsyncEnumerable<PointItem<TValue>> points,
+        int bulkInsertBlockSize = 100000,
+        CancellationToken ct = default)
     {
         var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
         await foreach (var pointItem in points)
@@ -240,14 +263,22 @@ internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue
             if (fixedList.Count >= bulkInsertBlockSize)
             {
                 await this.InsertPointsCoreAsync(
-                    this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
+                    this.providerSession.RootId,
+                    this.providerSession.Entire,
+                    fixedList,
+                    bulkInsertBlockSize,
+                    ct);
                 fixedList.Clear();
             }
         }
         if (fixedList.Count >= 1)
         {
             await this.InsertPointsCoreAsync(
-                this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
+                this.providerSession.RootId,
+                this.providerSession.Entire,
+                fixedList,
+                bulkInsertBlockSize,
+                ct);
         }
     }
 

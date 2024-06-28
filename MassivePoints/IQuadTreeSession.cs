@@ -46,17 +46,19 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// Bulk insert coordinate points.
     /// </summary>
     /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     ValueTask InsertPointsAsync(
-        IEnumerable<PointItem<TValue>> points, CancellationToken ct = default);
+        IEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
 
     /// <summary>
     /// Bulk insert coordinate points.
     /// </summary>
     /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     ValueTask InsertPointsAsync(
-        IAsyncEnumerable<PointItem<TValue>> points, CancellationToken ct = default);
+        IAsyncEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
 
     /// <summary>
     /// Lookup values with a coordinate point.
