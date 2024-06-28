@@ -18,12 +18,13 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
-internal sealed class DbPreparedCommand : IDisposable
+[EditorBrowsable(EditorBrowsableState.Advanced)]
+public sealed class DbPreparedCommand : IDisposable
 {
     private readonly DbCommand command;
     private readonly DbConnectionCache parent;
 
-    public DbPreparedCommand(
+    internal DbPreparedCommand(
         DbConnectionCache parent,
         DbCommand command,
         DbQueryDefinition query)
@@ -45,8 +46,7 @@ internal sealed class DbPreparedCommand : IDisposable
     public void Dispose() =>
         this.parent.ReleasePreparedCommand(this);
 
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public DbCommand UnsafeCommand =>
+    internal DbCommand UnsafeCommand =>
         this.command;
 
     private void PrepareExecution(

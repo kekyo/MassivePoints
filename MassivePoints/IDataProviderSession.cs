@@ -7,6 +7,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Collections;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -71,8 +72,16 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     ValueTask<int> GetPointCountAsync(
         TNodeId nodeId, CancellationToken ct);
 
-    ValueTask AddPointAsync(
-        TNodeId nodeId, Point point, TValue value, CancellationToken ct);
+    /// <summary>
+    /// Inserts the specified coordinate points.
+    /// </summary>
+    /// <param name="nodeId">Node ID</param>
+    /// <param name="points">Coordinate points</param>
+    /// <param name="offset">Coordinate point list offset</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Inserted points</returns>
+    ValueTask<int> InsertPointsAsync(
+        TNodeId nodeId, IReadOnlyArray<KeyValuePair<Point, TValue>> points, int offset, CancellationToken ct);
 
     ValueTask<QuadTreeNode<TNodeId>> DistributePointsAsync(
         TNodeId nodeId, Bound[] toBounds, CancellationToken ct);

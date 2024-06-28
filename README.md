@@ -30,16 +30,21 @@ using MassivePoints;
 // and pair of value type on the memory.
 double width = 100000.0;
 double height = 100000.0;
-IQuadTree<string> quadTree = QuadTree.Factory.Create<string>(width, height);
+IQuadTree<string> quadTree =
+    QuadTree.Factory.Create<string>(width, height);
 
-// Add a lot of random coordinates.
+// Begin a session for update.
+await using IQuadTreeSession<string> session =
+    await quadTree.BeginSessionAsync(true);
+
+// Insert a lot of random coordinates.
 var count = 1000000;
 var r = new Random();
 for (var index = 0; index < count; index++)
 {
     double x = r.Next(0, width - 1);
     double y = r.Next(0, height - 1);
-    await quadTree.AddAsync((x, y), $"Point{index}");
+    await session.InsertPointAsync(new Point(x, y), $"Point{index}");
 }
 
 // Extract values by specifying coordinate range.
@@ -48,7 +53,7 @@ double y = 40000.0;
 double width = 35000.0;
 double height = 23000.0;
 foreach (KeyValuePair<Point, string> entry in
-    await quadTree.LookupBoundAsync((x, y, width, height)))
+    await session.LookupBoundAsync(new Bound(x, y, width, height)))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
@@ -92,8 +97,6 @@ IQuadTree<string> quadTree = QuadTree.Factory.Create<string>(width, height);
 
 This sample code uses SQLite ADO.NET provider: [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
 
-TODO: The steps for using the ADO.NET data provider are possibly subject to change.
-
 
 ```csharp
 using MassivePoints;
@@ -107,14 +110,13 @@ var connectionString = new SqliteConnectionStringBuilder()
     Mode = SqliteOpenMode.ReadWriteCreate,
 }.ToString();
 
-await using var connection = new SqliteConnection(connectionString);
-await connection.OpenAsync(default);
-
 // Create QuadTree provider using SQLite database.
 double width = 100000.0;
 double height = 100000.0;
 var provider = QuadTree.Factory.CreateProvider<string>(
-    connection, "test", new Bound(width, height));
+    () => new SqliteConnection(connectionString),
+    new DbDataProviderConfiguration(),
+    new Bound(width, height));
 
 // Setup the SQLite tables to be used with QuadTree.
 await provider.CreateSQLiteTablesAsync(false, default);
@@ -124,19 +126,59 @@ await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
 IQuadTree<string> quadTree = QuadTree.Factory.Create(provider);
 ```
 
-### Add coordinate points
+### Begin a session
 
-You can add a coordinate point and a value to associate with it using `AddAsync()`:
+You have to use `BeginSessionAsync()` to start QuadTree manipulation:
 
 ```csharp
-// Add a lot of random coordinates.
+// Begin a update session.
+await using (IQuadTreeSession<string> session =
+    await quadTree.BeginSessionAsync(true))
+{
+    // (Do insert, lookup and remove operations)
+    await session.InsertPointAsync(...);
+
+    // Finish a session.
+    await session.FinishAsync();
+}
+```
+
+The argument `willUpdate` indicates whether coordinate points will be inserted or removed during this session.
+If `true`, the concurrent operation may fail.
+Conversely if `false`, concurrent operation is possible and multiple lookup operations may be performed simultaneously.
+
+|`willUpdate`|Lookup|Update: Insert,Remove|Concurrency|
+|:----|:----|:----|:----|
+|`true`|Yes|Yes|No|
+|`false`|Yes|No|Yes|
+
+Also, be sure to call `FinishAsync()` after any updates.
+Depending on the backend data provider, the updates may be undone.
+
+### Insert coordinate points
+
+You can insert a coordinate point and a value to associate with it using `InsertPointAsync()`:
+
+```csharp
+// Insert a random coordinate point.
+var r = new Random();
+Point point = new Point(r.Next(0, width - 1), r.Next(0, height - 1));
+await session.InsertPointAsync(point, $"Point{index}");
+```
+
+You can also perform other bulk inserts,
+inserting a large number of coordinate points to faster with `InsertPointsAsync()`.
+
+```csharp
+// Insert a lot of random coordinates.
 var count = 1000000;
 var r = new Random();
-for (var index = 0; index < count; index++)
-{
-    Point point = new Point(r.Next(0, width - 1), r.Next(0, height - 1));
-    await quadTree.AddAsync(point, $"Point{index}");
-}
+
+await session.InsertPointsAsync(
+    Enumerable.Range(0, count).
+    Select(_ => new KeyValuePair<Point, string>(
+        new Point(r.Next(0, width - 1), r.Next(0, height - 1)),
+        $"Point{index}"));
 ```
 
 ### Lookup coordinate points
@@ -209,33 +251,10 @@ Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 long removed = await quadTree.RemoveBoundAsync(targetBound);
 ```
 
-### Scoped session
-
-TODO:
-
-You should use `BeginSessionAsync()` to protect QuadTree indexes
-when used in multi-threaded and/or multiple asynchronous processing:
-
-```csharp
-// Begin a update session.
-await using (var session = await quadTree.BeginSessionAsync(true))
-{
-    // (Manipulation for QuadTree)
-
-    // Finish a session.
-    await session.FinishAsync();
-}
-```
-
-The argument `willUpdate` indicates whether coordinate points will be added or removed during this session.
-If `true`, an exclusive lock is applied, so it is advisable to keep the number of operations to a minimum when running concurrently.
-
-Also, be sure to call `FinishAsync()` after any updates.
-Depending on the backend data provider, the updates may be undone.
-
 ### Perform index shrinking
 
-In the default configuration of MassivePoints, even if you remove a coordinate point, the index will not be shrinked.
+In the default configuration of MassivePoints,
+even if you remove a coordinate point, the index will not be shrinked.
 
 The index shrinking is a slow process because it is expensive to determine when shrinking is necessary.
 While understanding this drawback, set the `performShrinking` argument to `true` as follows:
@@ -256,7 +275,6 @@ long removed = await quadTree.RemoveBoundAsync(
 * Supports F# friendly interfaces.
 * Supports 3D or Multi-dimensionals.
 * Added more useful helper methods.
-* Bulk insertion.
 
 ## License
 
@@ -265,6 +283,7 @@ Apache-v2
 ## History
 
 * 0.9.0:
+  * Added bulk insert features.
   * Improved concurrency.
   * Implemented index shrinking.
 * 0.8.0:

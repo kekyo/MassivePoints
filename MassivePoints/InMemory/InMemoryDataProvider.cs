@@ -14,6 +14,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.Collections;
 using Nito.AsyncEx;
 
 // Async method lacks 'await' operators and will run synchronously
@@ -29,7 +30,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
 {
     private readonly AsyncReaderWriterLock locker = new();
     private readonly Dictionary<int, QuadTreeNode<int>> nodes = new();
-    private readonly Dictionary<int, List<KeyValuePair<Point, TValue>>> nodePoints = new();
+    private readonly Dictionary<int, ExpandableArray<KeyValuePair<Point, TValue>>> nodePoints = new();
     private readonly Bound entire;
     private readonly int maxNodePoints;
     private int maxNodeId = 0;
@@ -103,25 +104,33 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
 
         public ValueTask<QuadTreeNode<int>?> GetNodeAsync(
             int nodeId, CancellationToken ct) =>
-            new((this.parent.nodes.TryGetValue(nodeId, out var node) && node.TopLeftId != -1)
-                ? new QuadTreeNode<int>(node.TopLeftId, node.TopRightId, node.BottomLeftId, node.BottomRightId)
-                : null);
+            new((this.parent.nodes.TryGetValue(nodeId, out var node) && node.TopLeftId != -1) ?
+                new QuadTreeNode<int>(node.TopLeftId, node.TopRightId, node.BottomLeftId, node.BottomRightId) :
+                null);
 
         public ValueTask<int> GetPointCountAsync(
             int nodeId, CancellationToken ct) =>
             new(this.parent.nodePoints.TryGetValue(nodeId, out var points) ? points.Count : 0);
 
-        public ValueTask AddPointAsync(
-            int nodeId, Point point, TValue value, CancellationToken ct)
+        public ValueTask<int> InsertPointsAsync(
+            int nodeId, IReadOnlyArray<KeyValuePair<Point, TValue>> points, int offset, CancellationToken ct)
         {
+            int insertCount;
+
             if (!this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
             {
-                pointItems = new();
+                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints);
+                pointItems = new(insertCount);
                 this.parent.nodePoints.Add(nodeId, pointItems);
             }
+            else
+            {
+                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointItems.Count);
+            }
 
-            pointItems.Add(new(point, value));
-            return default;
+            pointItems.AddRange(points, offset, insertCount);
+
+            return new(insertCount);
         }
 
         public async ValueTask<QuadTreeNode<int>> DistributePointsAsync(
@@ -132,16 +141,16 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             var node = new QuadTreeNode<int>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
 
             var points = this.parent.nodePoints[nodeId];
-            var toPoints = new List<KeyValuePair<Point, TValue>>[toBounds.Length];
+            var toPoints = new ExpandableArray<KeyValuePair<Point, TValue>>[toBounds.Length];
 
             await Task.WhenAll(
                 Enumerable.Range(0, toPoints.Length).
                 Select(index => Task.Run(() =>
                 {
-                    var toPointList = new List<KeyValuePair<Point, TValue>>();
+                    var toPointList = new ExpandableArray<KeyValuePair<Point, TValue>>();
                     toPoints[index] = toPointList;
                     var toBound = toBounds[index];
-                    toPointList.AddRange(points.Where(pointItem => toBound.IsWithin(pointItem.Key)));
+                    toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Key));
                 })));
 
             Debug.Assert(toPoints.Sum(pointItems => pointItems.Count) == points.Count);
@@ -161,7 +170,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         public ValueTask AggregatePointsAsync(
             int[] nodeIds, Bound toBound, int toNodeId, CancellationToken ct)
         {
-            var points = new List<KeyValuePair<Point, TValue>>();
+            var points = new ExpandableArray<KeyValuePair<Point, TValue>>();
 
             foreach (var nodeId in nodeIds)
             {

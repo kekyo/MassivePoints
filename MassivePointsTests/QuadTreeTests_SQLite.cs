@@ -7,6 +7,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Data;
+using Microsoft.Data.Sqlite;
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
@@ -14,9 +17,6 @@ using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using MassivePoints.Data;
-using Microsoft.Data.Sqlite;
-using NUnit.Framework;
 
 namespace MassivePoints;
 
@@ -66,7 +66,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"insert_{count}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -80,7 +80,7 @@ public sealed class QuadTreeTests_SQLite
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
-                var depth = await session.AddAsync(
+                var depth = await session.InsertPointAsync(
                     (r.Next(0, 99999), r.Next(0, 99999)),
                     index,
                     default);
@@ -92,13 +92,167 @@ public sealed class QuadTreeTests_SQLite
             await session.FinishAsync();
         }
     }
-    
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(100000, 1024)]
+    public async Task BulklInsertSqlite1(long count, int maxNodePoints)
+    {
+        var provider = QuadTree.Factory.CreateProvider<long>(() =>
+            CreateSQLiteConnection($"bulkinsert1_{count}"),
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+
+        await provider.CreateSQLiteTablesAsync(false);
+
+        var quadTree = QuadTree.Factory.Create(provider);
+
+        var allPoints = new Point[count];
+
+        await using (var session = await quadTree.BeginSessionAsync(true))
+        {
+            try
+            {
+                var r = new Random();
+                for (var index = 0L; index < count; index += 100000)
+                {
+                    var points = Enumerable.Range(0, (int)Math.Min(100000, count - index)).
+                        Select(i =>
+                        {
+                            var p = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                            allPoints[index + i] = p;
+                            return new KeyValuePair<Point, long>(p, index + i);
+                        }).
+                        ToArray();
+
+                    await session.InsertPointsAsync(points);
+                }
+            }
+            finally
+            {
+                await session.FinishAsync();
+            }
+        }
+
+        await using (var session = await quadTree.BeginSessionAsync(false))
+        {
+            try
+            {
+                await Task.WhenAll(
+                    RangeLong(0L, count).
+                    Select(async index =>
+                    {
+                        var point = allPoints[index];
+                        var results = await session.LookupPointAsync(point);
+
+                        var f1 = results.Any(entry => entry.Value == index);
+                        Assert.That(f1, Is.True);
+                        var f2 = results.All(entry => entry.Key.Equals(point));
+                        Assert.That(f2, Is.True);
+                    }));
+            }
+            finally
+            {
+                await session.FinishAsync();
+            }
+        }
+    }
+
+    private static IEnumerable<long> RangeLong(long start, long count)
+    {
+        for (var index = 0L; index < count; index++)
+        {
+            yield return index + start;
+        }
+    }
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(10000000, 1024)]
+    public async Task BulklInsertSqlite2(long count, int maxNodePoints)
+    {
+        var provider = QuadTree.Factory.CreateProvider<long>(() =>
+            CreateSQLiteConnection($"bulkinsert2_{count}"),
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+
+        await provider.CreateSQLiteTablesAsync(false);
+
+        var quadTree = QuadTree.Factory.Create(provider);
+
+        await using var session = await quadTree.BeginSessionAsync(true);
+
+        try
+        {
+            var r = new Random();
+            await session.InsertPointsAsync(
+                RangeLong(0, count).
+                Select(index => new KeyValuePair<Point, long>(
+                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+        }
+        finally
+        {
+            await session.FinishAsync();
+        }
+    }
+
+    private static async IAsyncEnumerable<long> RangeLongAsync(long start, long count)
+    {
+        for (var index = 0L; index < count; index++)
+        {
+            if ((index % 100000) == 0)
+            {
+                await Task.Delay(1);   // insert continuation
+            }
+            yield return index + start;
+        }
+    }
+
+    private static async IAsyncEnumerable<TR> Select<T, TR>(
+        IAsyncEnumerable<T> enumerable, Func<T, TR> selector)
+    {
+        await foreach (var item in enumerable)
+        {
+            yield return selector(item);
+        }
+    }
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(10000000, 1024)]
+    public async Task BulklInsertSqlite3(long count, int maxNodePoints)
+    {
+        var provider = QuadTree.Factory.CreateProvider<long>(() =>
+            CreateSQLiteConnection($"bulkinsert3_{count}"),
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+
+        await provider.CreateSQLiteTablesAsync(false);
+
+        var quadTree = QuadTree.Factory.Create(provider);
+
+        await using var session = await quadTree.BeginSessionAsync(true);
+
+        try
+        {
+            var r = new Random();
+            await session.InsertPointsAsync(
+                Select(RangeLongAsync(0, count),
+                index => new KeyValuePair<Point, long>(
+                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+        }
+        finally
+        {
+            await session.FinishAsync();
+        }
+    }
+
     [TestCase(100000, 256)]
     public async Task LookupPointSqlite(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"lookup_point_{count}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -115,7 +269,7 @@ public sealed class QuadTreeTests_SQLite
                 {
                     var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                     points[index] = point;
-                    await session.AddAsync(point, index);
+                    await session.InsertPointAsync(point, index);
                 }
             }
             finally
@@ -151,7 +305,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"lookup_bound_{count}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -168,7 +322,7 @@ public sealed class QuadTreeTests_SQLite
                 {
                     var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                     points[index] = point;
-                    await session.AddAsync(point, index);
+                    await session.InsertPointAsync(point, index);
                 }
             }
             finally
@@ -216,7 +370,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"enumerate_bound_{count}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -233,7 +387,7 @@ public sealed class QuadTreeTests_SQLite
                 {
                     var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
                     points[index] = point;
-                    await session.AddAsync(point, index);
+                    await session.InsertPointAsync(point, index);
                 }
             }
             finally
@@ -287,7 +441,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"remove_points_{count}{(performShrinking ? "_shr" : "")}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -310,7 +464,7 @@ public sealed class QuadTreeTests_SQLite
                 }
 
                 list.Add(index);
-                await session.AddAsync(point, index);
+                await session.InsertPointAsync(point, index);
             }
 
             foreach (var entry in points)
@@ -334,7 +488,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"remove_bound_{count}{(performShrinking ? "_shr" : "")}"),
-            "test", (100000, 100000), maxNodePoints);
+            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -357,7 +511,7 @@ public sealed class QuadTreeTests_SQLite
                 }
 
                 list.Add(index);
-                await session.AddAsync(point, index);
+                await session.InsertPointAsync(point, index);
             }
 
             var removed = 0L;

@@ -7,16 +7,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
-using System.Data.SQLite;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using MassivePoints.Data;
-using Microsoft.Data.Sqlite;
-using NUnit.Framework;
+
+// Async method lacks 'await' operators and will run synchronously
+#pragma warning disable CS1998
 
 namespace MassivePoints;
 
@@ -26,7 +24,7 @@ public sealed class QuadTreeTests_InMemory
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(10000000, 65536)]
+    [TestCase(10000000, 1024)]
     public async Task InsertCollection(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -39,7 +37,7 @@ public sealed class QuadTreeTests_InMemory
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
-                var depth = await session.AddAsync(
+                var depth = await session.InsertPointAsync(
                     (r.Next(0, 99999), r.Next(0, 99999)),
                     index,
                     default);
@@ -51,7 +49,143 @@ public sealed class QuadTreeTests_InMemory
             await session.FinishAsync();
         }
     }
-    
+
+    private static IEnumerable<long> RangeLong(long start, long count)
+    {
+        for (var index = 0L; index < count; index++)
+        {
+            yield return index + start;
+        }
+    }
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(10000000, 1024)]
+    public async Task BulkInsertCollection1(long count, int maxNodePoints)
+    {
+        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+
+        var allPoints = new Point[count];
+
+        await using (var session = await quadTree.BeginSessionAsync(true))
+        {
+            try
+            {
+                var r = new Random();
+                for (var index = 0L; index < count; index += 100000)
+                {
+                    var points = Enumerable.Range(0, (int)Math.Min(100000, count - index)).
+                        Select(i =>
+                        {
+                            var p = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                            allPoints[index + i] = p;
+                            return new KeyValuePair<Point, long>(p, index + i);
+                        }).
+                        ToArray();
+
+                    await session.InsertPointsAsync(points);
+                }
+            }
+            finally
+            {
+                await session.FinishAsync();
+            }
+        }
+
+        await using (var session = await quadTree.BeginSessionAsync(false))
+        {
+            try
+            {
+                await Task.WhenAll(
+                    RangeLong(0L, count).
+                    Select(async index =>
+                    {
+                        var point = allPoints[index];
+                        var results = await session.LookupPointAsync(point);
+
+                        var f1 = results.Any(entry => entry.Value == index);
+                        Assert.That(f1, Is.True);
+                        var f2 = results.All(entry => entry.Key.Equals(point));
+                        Assert.That(f2, Is.True);
+                    }));
+            }
+            finally
+            {
+                await session.FinishAsync();
+            }
+        }
+    }
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(100000000, 65536)]
+    public async Task BulkInsertCollection2(long count, int maxNodePoints)
+    {
+        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+
+        await using var session = await quadTree.BeginSessionAsync(true);
+
+        try
+        {
+            var r = new Random();
+            await session.InsertPointsAsync(
+                RangeLong(0, count).
+                Select(index => new KeyValuePair<Point, long>(
+                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+        }
+        finally
+        {
+            await session.FinishAsync();
+        }
+    }
+
+    private static async IAsyncEnumerable<long> RangeLongAsync(long start, long count)
+    {
+        for (var index = 0L; index < count; index++)
+        {
+            if ((index % 100000) == 0)
+            {
+                await Task.Delay(1);   // insert continuation
+            }
+            yield return index + start;
+        }
+    }
+
+    private static async IAsyncEnumerable<TR> Select<T, TR>(
+        IAsyncEnumerable<T> enumerable, Func<T, TR> selector)
+    {
+        await foreach (var item in enumerable)
+        {
+            yield return selector(item);
+        }
+    }
+
+    [TestCase(1, 10)]
+    [TestCase(10, 10)]
+    [TestCase(11, 10)]
+    [TestCase(100000000, 65536)]
+    public async Task BulkInsertCollection3(long count, int maxNodePoints)
+    {
+        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+
+        await using var session = await quadTree.BeginSessionAsync(true);
+
+        try
+        {
+            var r = new Random();
+            await session.InsertPointsAsync(
+                Select(RangeLongAsync(0, count),
+                    index => new KeyValuePair<Point, long>(
+                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+        }
+        finally
+        {
+            await session.FinishAsync();
+        }
+    }
+
     [TestCase(1000000, 1024)]
     public async Task LookupPointCollection(long count, int maxNodePoints)
     {
@@ -61,19 +195,19 @@ public sealed class QuadTreeTests_InMemory
 
         try
         {
-            var points = new Point[count];
+            var allPoints = new Point[count];
 
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                points[index] = point;
-                await session.AddAsync(point, index);
+                allPoints[index] = point;
+                await session.InsertPointAsync(point, index);
             }
 
             for (var index = 0L; index < count; index++)
             {
-                var point = points[index];
+                var point = allPoints[index];
                 var results = await session.LookupPointAsync(point);
 
                 var f1 = results.Any(entry => entry.Value == index);
@@ -97,14 +231,14 @@ public sealed class QuadTreeTests_InMemory
 
         try
         {
-            var points = new Point[count];
+            var allPoints = new Point[count];
 
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                points[index] = point;
-                await session.AddAsync(point, index);
+                allPoints[index] = point;
+                await session.InsertPointAsync(point, index);
             }
 
             // Try random bounds lookup, repeats 100 times.
@@ -113,7 +247,7 @@ public sealed class QuadTreeTests_InMemory
                 var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
                 var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
 
-                var expected = points.
+                var expected = allPoints.
                     Select((p, index) => (p, index)).
                     Where(entry => bound.IsWithin(entry.p)).
                     OrderBy(entry => entry.index).
@@ -144,14 +278,14 @@ public sealed class QuadTreeTests_InMemory
 
         try
         {
-            var points = new Point[count];
+            var allPoints = new Point[count];
 
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                points[index] = point;
-                await session.AddAsync(point, index);
+                allPoints[index] = point;
+                await session.InsertPointAsync(point, index);
             }
 
             // Try random bounds lookup, repeats 100 times.
@@ -160,7 +294,7 @@ public sealed class QuadTreeTests_InMemory
                 var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
                 var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
 
-                var expected = points.
+                var expected = allPoints.
                     Select((p, index) => (p, index)).
                     Where(entry => bound.IsWithin(entry.p)).
                     OrderBy(entry => entry.index).
@@ -187,7 +321,7 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(100000, 1024, true)]
+    [TestCase(1000000, 1024, true)]
     [TestCase(1000000, 1024, false)]
     public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking)
     {
@@ -197,23 +331,23 @@ public sealed class QuadTreeTests_InMemory
 
         try
         {
-            var points = new Dictionary<Point, List<long>>();
+            var allPoints = new Dictionary<Point, List<long>>();
 
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                if (!points.TryGetValue(point, out var list))
+                if (!allPoints.TryGetValue(point, out var list))
                 {
                     list = new();
-                    points.Add(point, list);
+                    allPoints.Add(point, list);
                 }
 
                 list.Add(index);
-                await session.AddAsync(point, index);
+                await session.InsertPointAsync(point, index);
             }
 
-            foreach (var entry in points)
+            foreach (var entry in allPoints)
             {
                 var removed = await session.RemovePointsAsync(entry.Key, performShrinking);
                 Assert.That(removed, Is.EqualTo(entry.Value.Count));
@@ -238,20 +372,20 @@ public sealed class QuadTreeTests_InMemory
 
         try
         {
-            var points = new Dictionary<Point, List<long>>();
+            var allPoints = new Dictionary<Point, List<long>>();
 
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
                 var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                if (!points.TryGetValue(point, out var list))
+                if (!allPoints.TryGetValue(point, out var list))
                 {
                     list = new();
-                    points.Add(point, list);
+                    allPoints.Add(point, list);
                 }
 
                 list.Add(index);
-                await session.AddAsync(point, index);
+                await session.InsertPointAsync(point, index);
             }
 
             var removed = 0L;

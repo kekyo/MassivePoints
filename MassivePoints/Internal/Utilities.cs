@@ -70,4 +70,36 @@ internal static class Utilities
             yield return item;
         }
     }
+
+    public static IEnumerable<T> Range<T>(
+        this IReadOnlyList<T> list,
+        int offset,
+        int count)
+    {
+        var index = offset;
+        while (count >= 1)
+        {
+            var item = list[index];
+            yield return item;
+            index++;
+            count--;
+        }
+    }
+
+    public static IEnumerable<T> RangeWhile<T>(
+        this IReadOnlyList<T> list,
+        int offset,
+        Func<T, bool> predicate)
+    {
+        var index = offset;
+        while (index < list.Count)
+        {
+            var item = list[index];
+            if (predicate(item))
+            {
+                yield return item;
+            }
+            index++;
+        }
+    }
 }

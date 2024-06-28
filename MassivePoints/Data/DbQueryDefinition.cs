@@ -7,9 +7,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System.ComponentModel;
+
 namespace MassivePoints.Data;
 
-internal readonly struct DbQueryDefinition
+[EditorBrowsable(EditorBrowsableState.Advanced)]
+public readonly struct DbQueryDefinition
 {
     public readonly string CommandText;
     public readonly string[] ParameterNames;

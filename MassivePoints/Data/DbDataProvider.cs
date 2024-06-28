@@ -7,6 +7,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Collections;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -18,13 +19,19 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
+public sealed class DbDataProviderConfiguration
+{
+    public string Prefix { get; set; } = "quadtree";
+}
+
 /// <summary>
 /// Non volatile QuadTree ADO.NET data provider.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
+public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly Func<DbConnection> connectionFactory;
+    private readonly DbDataProviderConfiguration configuration;
     private readonly Bound entire;
     private readonly int maxNodePoints;
 
@@ -43,53 +50,54 @@ public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
 
     public DbDataProvider(
         Func<DbConnection> connectionFactory,
-        string symbol_prefix,
+        DbDataProviderConfiguration configuration,
         Bound entire,
         int maxNodePoints = 1024)
     {
         this.connectionFactory = connectionFactory;
+        this.configuration = configuration;
         this.entire = entire;
         this.maxNodePoints = maxNodePoints;
-        this.Prefix = symbol_prefix;
 
         this.selectNodeQuery = new(
-            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {symbol_prefix}_nodes WHERE id=@id",
+            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {this.Prefix}_nodes WHERE id=@id",
             "@id");
         this.selectPointCountQuery = new(
-            $"SELECT COUNT(*) FROM {symbol_prefix}_node_points WHERE node_id=@node_id",
+            $"SELECT COUNT(*) FROM {this.Prefix}_node_points WHERE node_id=@node_id",
             "@node_id");
         this.insertPointQuery = new(
-            $"INSERT INTO {symbol_prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
+            $"INSERT INTO {this.Prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
             "@node_id", "@x", "@y", "@value");
         this.selectNodeMaxIdQuery = new(
-            $"SELECT MAX(id) FROM {symbol_prefix}_nodes");
+            $"SELECT MAX(id) FROM {this.Prefix}_nodes");
         this.updateNodeQuery = new(
-            $"UPDATE {symbol_prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
+            $"UPDATE {this.Prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.insertNodeQuery = new(
-            $"INSERT INTO {symbol_prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
+            $"INSERT INTO {this.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.deleteNodeQuery = new(
-            $"DELETE FROM {symbol_prefix}_nodes WHERE id=@id",
+            $"DELETE FROM {this.Prefix}_nodes WHERE id=@id",
             "@id");
         this.updatePointsQuery = new(
-            $"UPDATE {symbol_prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"UPDATE {this.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1", "@to_node_id");
         this.selectPointQuery = new(
-            $"SELECT x,y,[value] FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.selectPointsQuery = new(
-            $"SELECT x,y,[value] FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1");
         this.deletePointQuery = new(
-            $"DELETE FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.deleteBoundQuery = new(
-            $"DELETE FROM {symbol_prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@y0", "@x1", "@y1");
     }
     
-    public string Prefix { get; }
+    public string Prefix =>
+        this.configuration.Prefix;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public async ValueTask<DbConnection> OpenTemporaryConnectionAsync(
@@ -109,6 +117,17 @@ public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
     }
 
     /// <summary>
+    /// Create DataProviderSession instance.
+    /// </summary>
+    /// <param name="connectionCache">`DbConnectionCache`</param>
+    /// <returns>`DataProviderSession`</returns>
+    /// <remarks>You can derive this class to provide your own `DataProviderSession`.
+    /// This is primarily intended to be a proprietary implementation of BulkInsert.</remarks>
+    protected virtual DataProviderSession OnCreateDataProviderSession(
+        DbConnectionCache connectionCache) =>
+        new DataProviderSession(this, connectionCache);
+
+    /// <summary>
     /// Begin a session.
     /// </summary>
     /// <param name="willUpdate">True if possibility changes will be made during the session</param>
@@ -119,13 +138,13 @@ public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
     {
         var connectionCache = new DbConnectionCache(
             willUpdate, this.connectionFactory);
-        return new(new DataProviderSession(this, connectionCache));
+        return new(this.OnCreateDataProviderSession(connectionCache));
     }
 
     /// <summary>
-    /// Volatile in-memory QuadTree data provider session.
+    /// ADO.NET QuadTree data provider session.
     /// </summary>
-    private sealed class DataProviderSession :
+    protected class DataProviderSession :
         IDataProviderSession<TValue, long>
     {
         private readonly DbDataProvider<TValue> parent;
@@ -196,21 +215,46 @@ public sealed class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 nodeId);
         }
 
-        public async ValueTask AddPointAsync(
-            long nodeId, Point point, TValue value, CancellationToken ct)
+        /// <summary>
+        /// Inserts the specified coordinate points.
+        /// </summary>
+        /// <param name="nodeId">Node ID</param>
+        /// <param name="points">Coordinate points</param>
+        /// <param name="offset">Coordinate point list offset</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Inserted points</returns>
+        /// <remarks>You can override this method to provide your own bulk insertion.</remarks>
+        public virtual async ValueTask<int> InsertPointsAsync(
+            long nodeId, IReadOnlyArray<KeyValuePair<Point, TValue>> points, int offset, CancellationToken ct)
         {
-            using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.insertPointQuery, ct);
-            if (await command.ExecuteNonQueryAsync(
+            using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
+                this.parent.selectPointCountQuery, ct);
+            var pointCount = await selectCommand.ExecuteReadOneRecordAsync(
+                record => record.GetInt32(0),
                 ct,
-                nodeId,
-                point.X,
-                point.Y,
-                (object?)value ?? DBNull.Value) != 1)
+                nodeId);
+
+            using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
+                this.parent.insertPointQuery, ct);
+
+            var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
+
+            for (var index = 0; index < insertCount; index++)
             {
-                throw new InvalidDataException(
-                    $"AddPoint: NodeId={nodeId}, Point={point}");
+                var pointItem = points[index + offset];
+                if (await insertCommand.ExecuteNonQueryAsync(
+                    ct,
+                    nodeId,
+                    pointItem.Key.X,
+                    pointItem.Key.Y,
+                    (object?)pointItem.Value ?? DBNull.Value) != 1)
+                {
+                    throw new InvalidDataException(
+                        $"AddPoint: NodeId={nodeId}, Point={pointItem.Key}");
+                }
             }
+
+            return insertCount;
         }
 
         private async ValueTask MovePointsAsync(

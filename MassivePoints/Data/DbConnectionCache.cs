@@ -9,6 +9,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
@@ -16,7 +17,8 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
-internal sealed class DbConnectionCache : IAsyncDisposable
+[EditorBrowsable(EditorBrowsableState.Advanced)]
+public sealed class DbConnectionCache : IAsyncDisposable
 {
     private readonly Func<DbConnection> connectionFactory;
     private readonly Dictionary<string, Stack<DbPreparedCommand>> preparedCommands = new();
@@ -25,7 +27,7 @@ internal sealed class DbConnectionCache : IAsyncDisposable
     private DbConnection? commonConnection;
     private DbTransaction? commonTransaction;
 
-    public DbConnectionCache(
+    internal DbConnectionCache(
         bool useSharedConnection,
         Func<DbConnection> connectionFactory)
     {
@@ -166,7 +168,7 @@ internal sealed class DbConnectionCache : IAsyncDisposable
     /// </summary>
     /// <param name="preparedCommand">`DbPreparedCommand`</param>
     /// <remarks>The command will be reserved for future requests.</remarks>
-    public void ReleasePreparedCommand(
+    internal void ReleasePreparedCommand(
         DbPreparedCommand preparedCommand)
     {
         var commandText = preparedCommand.UnsafeCommand.CommandText;

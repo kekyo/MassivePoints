@@ -31,7 +31,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     ValueTask FinishAsync();
 
     /// <summary>
-    /// Add a coordinate point.
+    /// Insert a coordinate point.
     /// </summary>
     /// <param name="point">Coordinate point</param>
     /// <param name="value">Related value</param>
@@ -39,8 +39,24 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <returns>A depth value where placed the coordinate point</returns>
     /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
-    ValueTask<int> AddAsync(
+    ValueTask<int> InsertPointAsync(
         Point point, TValue value, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="ct">`CancellationToken`</param>
+    ValueTask InsertPointsAsync(
+        IEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="ct">`CancellationToken`</param>
+    ValueTask InsertPointsAsync(
+        IAsyncEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default);
 
     /// <summary>
     /// Lookup values with a coordinate point.

@@ -7,6 +7,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Collections;
+using MassivePoints.Internal;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +16,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using MassivePoints.Internal;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
@@ -25,6 +26,8 @@ namespace MassivePoints;
 
 public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 {
+    private const int bulkInsertBlockSize = 100000;
+
     private readonly IDataProviderSession<TValue, TNodeId> session;
 
     public QuadTreeSession(IDataProviderSession<TValue, TNodeId> session) =>
@@ -44,7 +47,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<int> AddAsync(
+    private async ValueTask<int> InsertPointAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -54,10 +57,10 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            var count = await this.session.GetPointCountAsync(nodeId, ct);
-            if (count < this.session.MaxNodePoints)
+            var inserted = await this.session.InsertPointsAsync(
+                nodeId, new ReadOnlyArray<KeyValuePair<Point, TValue>>([new(targetPoint, value)]), 0, ct);
+            if (inserted >= 1)
             {
-                await this.session.AddPointAsync(nodeId, targetPoint, value, ct);
                 return depth;
             }
 
@@ -74,7 +77,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             var childBound = childBounds[index];
             if (childBound.IsWithin(targetPoint))
             {
-                return await AddAsync(childId, childBound, targetPoint, value, depth + 1, ct);
+                return await this.InsertPointAsync(
+                    childId, childBound, targetPoint, value, depth + 1, ct);
             }
         }
 
@@ -83,7 +87,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     }
 
     /// <summary>
-    /// Add a coordinate point.
+    /// Insert a coordinate point.
     /// </summary>
     /// <param name="point">Coordinate point</param>
     /// <param name="value">Related value</param>
@@ -91,10 +95,161 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <returns>A depth value where placed the coordinate point</returns>
     /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
-    public ValueTask<int> AddAsync(
+    public ValueTask<int> InsertPointAsync(
         Point point, TValue value, CancellationToken ct = default) =>
-        this.AddAsync(this.session.RootId, this.session.Entire, point, value, 0, ct);
-        
+        this.InsertPointAsync(this.session.RootId, this.session.Entire, point, value, 0, ct);
+
+    /////////////////////////////////////////////////////////////////////////////////
+
+    private async ValueTask InsertPointsCoreAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        IReadOnlyArray<KeyValuePair<Point, TValue>> points,
+        CancellationToken ct)
+    {
+        int offset = 0;
+
+        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        {
+            var inserted = await this.session.InsertPointsAsync(
+                nodeId, points, offset, ct);
+            offset += inserted;
+            if (offset >= points.Count)
+            {
+                return;
+            }
+
+            node = await this.session.DistributePointsAsync(
+                nodeId, nodeBound.ChildBounds, ct);
+        }
+
+        var childIds = node.ChildIds;
+        var childBounds = nodeBound.ChildBounds;
+
+        var splittedLists = new ExpandableArray<KeyValuePair<Point, TValue>>[childIds.Length];
+
+        await Task.WhenAll(
+            Enumerable.Range(0, childIds.Length).
+            Select(index => Task.Run(() =>
+            {
+                var list = new ExpandableArray<KeyValuePair<Point, TValue>>();
+                splittedLists[index] = list;
+                var bound = childBounds[index];
+                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Key));
+            })));
+
+        for (var index = 0; index < childIds.Length; index++)
+        {
+            var list = splittedLists[index];
+            splittedLists[index] = null!;   // Will make early collectible by GC.
+            if (list.Count >= 1)
+            {
+                var childId = childIds[index];
+                var childBound = childBounds[index];
+                await this.InsertPointsAsync(
+                    childId, childBound, list, ct);
+            }
+        }
+    }
+
+    private async ValueTask InsertPointsAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        IReadOnlyArray<KeyValuePair<Point, TValue>> points,
+        CancellationToken ct)
+    {
+        if (points.Count < bulkInsertBlockSize)
+        {
+            await this.InsertPointsCoreAsync(
+                nodeId, nodeBound, points, ct);
+        }
+        else
+        {
+            var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+            foreach (var pointItem in points)
+            {
+                fixedList.Add(pointItem);
+                if (fixedList.Count >= bulkInsertBlockSize)
+                {
+                    await this.InsertPointsCoreAsync(
+                        this.session.RootId, this.session.Entire, fixedList, ct);
+                    fixedList.Clear();
+                }
+            }
+            if (fixedList.Count >= 1)
+            {
+                await this.InsertPointsCoreAsync(
+                    nodeId, nodeBound, fixedList, ct);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="ct">`CancellationToken`</param>
+    public async ValueTask InsertPointsAsync(
+        IEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default)
+    {
+        if (points is IReadOnlyList<KeyValuePair<Point, TValue>> pointList &&
+            pointList.Count < bulkInsertBlockSize)
+        {
+            await this.InsertPointsCoreAsync(
+                this.session.RootId,
+                this.session.Entire,
+                new ReadOnlyArray<KeyValuePair<Point, TValue>>(pointList),
+                ct);
+        }
+        else
+        {
+            var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+            foreach (var pointItem in points)
+            {
+                fixedList.Add(pointItem);
+                if (fixedList.Count >= bulkInsertBlockSize)
+                {
+                    await this.InsertPointsCoreAsync(
+                        this.session.RootId, this.session.Entire, fixedList, ct);
+                    fixedList.Clear();
+                }
+            }
+            if (fixedList.Count >= 1)
+            {
+                await this.InsertPointsCoreAsync(
+                    this.session.RootId, this.session.Entire, fixedList, ct);
+            }
+        }
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="ct">`CancellationToken`</param>
+    public async ValueTask InsertPointsAsync(
+        IAsyncEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default)
+    {
+        var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+        await foreach (var pointItem in points)
+        {
+            fixedList.Add(pointItem);
+            if (fixedList.Count >= bulkInsertBlockSize)
+            {
+                await this.InsertPointsCoreAsync(
+                    this.session.RootId, this.session.Entire, fixedList, ct);
+                fixedList.Clear();
+            }
+        }
+        if (fixedList.Count >= 1)
+        {
+            await this.InsertPointsCoreAsync(
+                this.session.RootId, this.session.Entire, fixedList, ct);
+        }
+    }
+
     /////////////////////////////////////////////////////////////////////////////////
 
     private async ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
@@ -105,7 +260,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.session.LookupPointAsync(nodeId, targetPoint, ct);
+            return await this.session.LookupPointAsync(
+                nodeId, targetPoint, ct);
         }
 
         var childIds = node.ChildIds;
@@ -117,7 +273,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             var childBound = childBounds[index];
             if (childBound.IsWithin(targetPoint))
             {
-                return await this.LookupPointAsync(childId, childBound, targetPoint, ct);
+                return await this.LookupPointAsync(
+                    childId, childBound, targetPoint, ct);
             }
         }
 
@@ -145,7 +302,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            var rs = await this.session.LookupBoundAsync(nodeId, targetBound, ct);
+            var rs = await this.session.LookupBoundAsync(
+                nodeId, targetBound, ct);
             lock (results)
             {
                 results.Add(rs);
@@ -163,7 +321,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 if (childBound.IsIntersection(targetBound))
                 {
                     var childId = childIds[index];
-                    return this.LookupBoundAsync(childId, childBound, targetBound, results, ct).AsTask();
+                    return this.LookupBoundAsync(
+                        childId, childBound, targetBound, results, ct).
+                        AsTask();
                 }
                 else
                 {
@@ -200,7 +360,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return this.session.EnumerateBoundAsync(nodeId, targetBound, ct);
+            return this.session.EnumerateBoundAsync(
+                nodeId, targetBound, ct);
         }
 
         var childIds = node.ChildIds;
@@ -213,8 +374,10 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             var childBound = childBounds[index];
             if (childBound.IsIntersection(targetBound))
             {
-                results = results?.Concat(await this.EnumerateBoundAsync(childId, childBound, targetBound, ct), ct) ??
-                    await this.EnumerateBoundAsync(childId, childBound, targetBound, ct);
+                results = results?.Concat(await this.EnumerateBoundAsync(
+                    childId, childBound, targetBound, ct), ct) ??
+                    await this.EnumerateBoundAsync(
+                        childId, childBound, targetBound, ct);
             }
         }
         
@@ -261,7 +424,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             var childId = childIds[index];
             var childBound = childBounds[index];
             Debug.Assert(!childBound.IsWithin(targetPoint));
-            remainsHint += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+            remainsHint += await this.GetPointCountAsync(
+                childId, childBound, targetPoint, ct);
 
             // HACK: If remains is exceeded, this node is terminated as there is no further need to examine it.
             if (remainsHint >= this.session.MaxNodePoints)
@@ -310,14 +474,16 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                     // HACK: If remains is exceeded, this node is ignored as it does not need to be inspected further.
                     if (remainsHint < this.session.MaxNodePoints)
                     {
-                        remainsHint += await this.GetPointCountAsync(childId, childBound, targetPoint, ct);
+                        remainsHint += await this.GetPointCountAsync(
+                            childId, childBound, targetPoint, ct);
                     }
                 }
             }
 
             if (remainsHint < this.session.MaxNodePoints)
             {
-                await this.session.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
+                await this.session.AggregatePointsAsync(
+                    childIds, nodeBound, nodeId, ct);
             }
             return new(removed, remainsHint);
         }
@@ -399,7 +565,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 
             if (remainsHint < this.session.MaxNodePoints)
             {
-                await this.session.AggregatePointsAsync(childIds, nodeBound, nodeId, ct);
+                await this.session.AggregatePointsAsync(
+                    childIds, nodeBound, nodeId, ct);
             }
             return new(removed, remainsHint);
         }
