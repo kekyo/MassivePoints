@@ -56,24 +56,6 @@ public readonly struct PointItem<TValue> : IEquatable<PointItem<TValue>>
         }
     }
 
-    public void Deconstruct(
-        out Point point,
-        out TValue value)
-    {
-        point = this.Point;
-        value = this.Value;
-    }
-
-    public void Deconstruct(
-        out double x,
-        out double y,
-        out TValue value)
-    {
-        x = this.Point.X;
-        y = this.Point.Y;
-        value = this.Value;
-    }
-
     public override string ToString() =>
         $"{this.Point}: {this.Value}";
 
@@ -98,4 +80,27 @@ public static class PointItem
     public static PointItem<TValue> Create<TValue>(KeyValuePair<Point, TValue> pointItem) =>
         new(pointItem.Key, pointItem.Value);
 
+}
+
+public static class PointItemExtension
+{
+    public static void Deconstruct<TValue>(
+        this PointItem<TValue> self,
+        out Point point,
+        out TValue value)
+    {
+        point = self.Point;
+        value = self.Value;
+    }
+
+    public static void Deconstruct<TValue>(
+        this PointItem<TValue> self,
+        out double x,
+        out double y,
+        out TValue value)
+    {
+        x = self.Point.X;
+        y = self.Point.Y;
+        value = self.Value;
+    }
 }

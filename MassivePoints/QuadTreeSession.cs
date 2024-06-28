@@ -11,6 +11,7 @@ using MassivePoints.Collections;
 using MassivePoints.Internal;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -24,26 +25,26 @@ using System.Threading.Tasks;
 
 namespace MassivePoints;
 
-public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
+internal sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 {
     private const int bulkInsertBlockSize = 100000;
 
-    private readonly IDataProviderSession<TValue, TNodeId> session;
+    private readonly IDataProviderSession<TValue, TNodeId> providerSession;
 
-    public QuadTreeSession(IDataProviderSession<TValue, TNodeId> session) =>
-        this.session = session;
+    internal QuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
+        this.providerSession = providerSession;
 
     public ValueTask DisposeAsync() =>
-        this.session.DisposeAsync();
+        this.providerSession.DisposeAsync();
 
     public ValueTask FinishAsync() =>
-        this.session.FinishAsync();
+        this.providerSession.FinishAsync();
 
     /// <summary>
     /// The overall range of the coordinate points managed.
     /// </summary>
     public Bound Entire =>
-        this.session.Entire;
+        this.providerSession.Entire;
     
     /////////////////////////////////////////////////////////////////////////////////
 
@@ -55,16 +56,16 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         int depth,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            var inserted = await this.session.InsertPointsAsync(
+            var inserted = await this.providerSession.InsertPointsAsync(
                 nodeId, new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]), 0, ct);
             if (inserted >= 1)
             {
                 return depth;
             }
 
-            node = await this.session.DistributePointsAsync(
+            node = await this.providerSession.DistributePointsAsync(
                 nodeId, nodeBound.ChildBounds, ct);
         }
 
@@ -97,7 +98,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
     public ValueTask<int> InsertPointAsync(
         Point point, TValue value, CancellationToken ct = default) =>
-        this.InsertPointAsync(this.session.RootId, this.session.Entire, point, value, 0, ct);
+        this.InsertPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, value, 0, ct);
 
     /////////////////////////////////////////////////////////////////////////////////
 
@@ -109,9 +110,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         int offset = 0;
 
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            var inserted = await this.session.InsertPointsAsync(
+            var inserted = await this.providerSession.InsertPointsAsync(
                 nodeId, points, offset, ct);
             offset += inserted;
             if (offset >= points.Count)
@@ -119,7 +120,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 return;
             }
 
-            node = await this.session.DistributePointsAsync(
+            node = await this.providerSession.DistributePointsAsync(
                 nodeId, nodeBound.ChildBounds, ct);
         }
 
@@ -172,7 +173,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
                     await this.InsertPointsCoreAsync(
-                        this.session.RootId, this.session.Entire, fixedList, ct);
+                        this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
                     fixedList.Clear();
                 }
             }
@@ -196,8 +197,8 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             pointList.Count < bulkInsertBlockSize)
         {
             await this.InsertPointsCoreAsync(
-                this.session.RootId,
-                this.session.Entire,
+                this.providerSession.RootId,
+                this.providerSession.Entire,
                 new ReadOnlyArray<PointItem<TValue>>(pointList),
                 ct);
         }
@@ -210,14 +211,14 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
                     await this.InsertPointsCoreAsync(
-                        this.session.RootId, this.session.Entire, fixedList, ct);
+                        this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
                     fixedList.Clear();
                 }
             }
             if (fixedList.Count >= 1)
             {
                 await this.InsertPointsCoreAsync(
-                    this.session.RootId, this.session.Entire, fixedList, ct);
+                    this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
             }
         }
     }
@@ -239,14 +240,14 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             if (fixedList.Count >= bulkInsertBlockSize)
             {
                 await this.InsertPointsCoreAsync(
-                    this.session.RootId, this.session.Entire, fixedList, ct);
+                    this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
                 fixedList.Clear();
             }
         }
         if (fixedList.Count >= 1)
         {
             await this.InsertPointsCoreAsync(
-                this.session.RootId, this.session.Entire, fixedList, ct);
+                this.providerSession.RootId, this.providerSession.Entire, fixedList, ct);
         }
     }
 
@@ -258,9 +259,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Point targetPoint,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.session.LookupPointAsync(
+            return await this.providerSession.LookupPointAsync(
                 nodeId, targetPoint, ct);
         }
 
@@ -289,7 +290,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <returns>Point and values</returns>
     public ValueTask<PointItem<TValue>[]> LookupPointAsync(
         Point point, CancellationToken ct = default) =>
-        this.LookupPointAsync(this.session.RootId, this.session.Entire, point, ct);
+        this.LookupPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, ct);
     
     /////////////////////////////////////////////////////////////////////////////////
 
@@ -300,9 +301,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         IExpandableArray<PointItem<TValue>[]> results,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            var rs = await this.session.LookupBoundAsync(
+            var rs = await this.providerSession.LookupBoundAsync(
                 nodeId, targetBound, ct);
             lock (results)
             {
@@ -342,7 +343,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Bound bound, CancellationToken ct = default)
     {
         var results = new ExpandableArray<PointItem<TValue>[]>();
-        await this.LookupBoundAsync(this.session.RootId, this.session.Entire, bound, results, ct);
+        await this.LookupBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, results, ct);
         return results.SelectMany(r => r).ToArray();
     }
     
@@ -358,9 +359,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Bound targetBound,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return this.session.EnumerateBoundAsync(
+            return this.providerSession.EnumerateBoundAsync(
                 nodeId, targetBound, ct);
         }
 
@@ -395,7 +396,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     {
         // Unwrap all nested asynchronous tasks.
         await foreach (var entry in
-            (await this.EnumerateBoundAsync(this.session.RootId, this.session.Entire, bound, ct)).
+            (await this.EnumerateBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, ct)).
             WithCancellation(ct))
         {
             yield return entry;
@@ -410,9 +411,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Point targetPoint,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.session.GetPointCountAsync(nodeId, ct);
+            return await this.providerSession.GetPointCountAsync(nodeId, ct);
         }
 
         var childIds = node!.ChildIds;
@@ -428,7 +429,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 childId, childBound, targetPoint, ct);
 
             // HACK: If remains is exceeded, this node is terminated as there is no further need to examine it.
-            if (remainsHint >= this.session.MaxNodePoints)
+            if (remainsHint >= this.providerSession.MaxNodePoints)
             {
                 break;
             }
@@ -444,9 +445,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         bool performShrinking,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.session.RemovePointsAsync(
+            return await this.providerSession.RemovePointsAsync(
                 nodeId, targetPoint, performShrinking, ct);
         }
 
@@ -472,7 +473,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 else
                 {
                     // HACK: If remains is exceeded, this node is ignored as it does not need to be inspected further.
-                    if (remainsHint < this.session.MaxNodePoints)
+                    if (remainsHint < this.providerSession.MaxNodePoints)
                     {
                         remainsHint += await this.GetPointCountAsync(
                             childId, childBound, targetPoint, ct);
@@ -480,9 +481,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 }
             }
 
-            if (remainsHint < this.session.MaxNodePoints)
+            if (remainsHint < this.providerSession.MaxNodePoints)
             {
-                await this.session.AggregatePointsAsync(
+                await this.providerSession.AggregatePointsAsync(
                     childIds, nodeBound, nodeId, ct);
             }
             return new(removed, remainsHint);
@@ -514,7 +515,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Point point, bool performShrinking = false, CancellationToken ct = default)
     {
         var (removed, _) = await this.RemovePointsAsync(
-            this.session.RootId, this.session.Entire, point, performShrinking, ct);
+            this.providerSession.RootId, this.providerSession.Entire, point, performShrinking, ct);
         Debug.Assert(removed <= int.MaxValue);
         return (int)removed;
     }
@@ -528,9 +529,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         bool performShrinking,
         CancellationToken ct)
     {
-        if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.session.RemoveBoundAsync(
+            return await this.providerSession.RemoveBoundAsync(
                 nodeId, targetBound, performShrinking, ct);
         }
 
@@ -556,16 +557,16 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 else
                 {
                     // HACK: If remains is exceeded, this node is ignored as it does not need to be inspected further.
-                    if (remainsHint < this.session.MaxNodePoints)
+                    if (remainsHint < this.providerSession.MaxNodePoints)
                     {
-                        remainsHint += await this.session.GetPointCountAsync(childId, ct);
+                        remainsHint += await this.providerSession.GetPointCountAsync(childId, ct);
                     }
                 }
             }
 
-            if (remainsHint < this.session.MaxNodePoints)
+            if (remainsHint < this.providerSession.MaxNodePoints)
             {
-                await this.session.AggregatePointsAsync(
+                await this.providerSession.AggregatePointsAsync(
                     childIds, nodeBound, nodeId, ct);
             }
             return new(removed, remainsHint);
@@ -601,7 +602,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         Bound bound, bool performShrinking = false, CancellationToken ct = default)
     {
         var (removed, _) = await this.RemoveBoundAsync(
-            this.session.RootId, this.session.Entire, bound, performShrinking, ct);
+            this.providerSession.RootId, this.providerSession.Entire, bound, performShrinking, ct);
         return removed;
     }
 }
