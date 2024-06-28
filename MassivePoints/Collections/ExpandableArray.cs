@@ -88,7 +88,7 @@ public sealed class ExpandableArray<T> : IExpandableArray<T>
 
     public void Add(T value)
     {
-        if (this.exactLength > this.values.Length)
+        if (this.exactLength >= this.values.Length)
         {
             this.EnsureCapacity(this.exactLength + 1024);
         }

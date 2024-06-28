@@ -50,4 +50,7 @@ public readonly struct Point : IEquatable<Point>
 
     public static implicit operator Point((double x, double y) point) =>
         new(point.x, point.y);
+
+    public static Point Create(double x, double y) =>
+        new(x, y);
 }

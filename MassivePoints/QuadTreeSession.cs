@@ -58,7 +58,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
         {
             var inserted = await this.session.InsertPointsAsync(
-                nodeId, new ReadOnlyArray<KeyValuePair<Point, TValue>>([new(targetPoint, value)]), 0, ct);
+                nodeId, new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]), 0, ct);
             if (inserted >= 1)
             {
                 return depth;
@@ -104,7 +104,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     private async ValueTask InsertPointsCoreAsync(
         TNodeId nodeId,
         Bound nodeBound,
-        IReadOnlyArray<KeyValuePair<Point, TValue>> points,
+        IReadOnlyArray<PointItem<TValue>> points,
         CancellationToken ct)
     {
         int offset = 0;
@@ -126,16 +126,16 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         var childIds = node.ChildIds;
         var childBounds = nodeBound.ChildBounds;
 
-        var splittedLists = new ExpandableArray<KeyValuePair<Point, TValue>>[childIds.Length];
+        var splittedLists = new ExpandableArray<PointItem<TValue>>[childIds.Length];
 
         await Task.WhenAll(
             Enumerable.Range(0, childIds.Length).
             Select(index => Task.Run(() =>
             {
-                var list = new ExpandableArray<KeyValuePair<Point, TValue>>();
+                var list = new ExpandableArray<PointItem<TValue>>();
                 splittedLists[index] = list;
                 var bound = childBounds[index];
-                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Key));
+                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Point));
             })));
 
         for (var index = 0; index < childIds.Length; index++)
@@ -155,7 +155,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     private async ValueTask InsertPointsAsync(
         TNodeId nodeId,
         Bound nodeBound,
-        IReadOnlyArray<KeyValuePair<Point, TValue>> points,
+        IReadOnlyArray<PointItem<TValue>> points,
         CancellationToken ct)
     {
         if (points.Count < bulkInsertBlockSize)
@@ -165,7 +165,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         }
         else
         {
-            var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+            var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
             foreach (var pointItem in points)
             {
                 fixedList.Add(pointItem);
@@ -190,20 +190,20 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="points">Coordinate point and values</param>
     /// <param name="ct">`CancellationToken`</param>
     public async ValueTask InsertPointsAsync(
-        IEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default)
+        IEnumerable<PointItem<TValue>> points, CancellationToken ct = default)
     {
-        if (points is IReadOnlyList<KeyValuePair<Point, TValue>> pointList &&
+        if (points is IReadOnlyList<PointItem<TValue>> pointList &&
             pointList.Count < bulkInsertBlockSize)
         {
             await this.InsertPointsCoreAsync(
                 this.session.RootId,
                 this.session.Entire,
-                new ReadOnlyArray<KeyValuePair<Point, TValue>>(pointList),
+                new ReadOnlyArray<PointItem<TValue>>(pointList),
                 ct);
         }
         else
         {
-            var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+            var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
             foreach (var pointItem in points)
             {
                 fixedList.Add(pointItem);
@@ -230,9 +230,9 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="points">Coordinate point and values</param>
     /// <param name="ct">`CancellationToken`</param>
     public async ValueTask InsertPointsAsync(
-        IAsyncEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default)
+        IAsyncEnumerable<PointItem<TValue>> points, CancellationToken ct = default)
     {
-        var fixedList = new ExpandableArray<KeyValuePair<Point, TValue>>(bulkInsertBlockSize);
+        var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
         await foreach (var pointItem in points)
         {
             fixedList.Add(pointItem);
@@ -252,7 +252,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
+    private async ValueTask<PointItem<TValue>[]> LookupPointAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -278,7 +278,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             }
         }
 
-        return Array.Empty<KeyValuePair<Point, TValue>>();
+        return Array.Empty<PointItem<TValue>>();
     }
 
     /// <summary>
@@ -287,7 +287,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="point">Coordinate point</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    public ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
+    public ValueTask<PointItem<TValue>[]> LookupPointAsync(
         Point point, CancellationToken ct = default) =>
         this.LookupPointAsync(this.session.RootId, this.session.Entire, point, ct);
     
@@ -297,7 +297,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
-        List<KeyValuePair<Point, TValue>[]> results,
+        IExpandableArray<PointItem<TValue>[]> results,
         CancellationToken ct)
     {
         if (await this.session.GetNodeAsync(nodeId, ct) is not { } node)
@@ -338,10 +338,10 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    public async ValueTask<KeyValuePair<Point, TValue>[]> LookupBoundAsync(
+    public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
         Bound bound, CancellationToken ct = default)
     {
-        var results = new List<KeyValuePair<Point, TValue>[]>();
+        var results = new ExpandableArray<PointItem<TValue>[]>();
         await this.LookupBoundAsync(this.session.RootId, this.session.Entire, bound, results, ct);
         return results.SelectMany(r => r).ToArray();
     }
@@ -352,7 +352,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     // Instead of performing nested asynchronous iteration and returning the results in every call,
     // we achieve better performance by performing asynchronous iteration only in the leaf nodes.
 
-    private async ValueTask<IAsyncEnumerable<KeyValuePair<Point, TValue>>> EnumerateBoundAsync(
+    private async ValueTask<IAsyncEnumerable<PointItem<TValue>>> EnumerateBoundAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
@@ -366,7 +366,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 
         var childIds = node.ChildIds;
         var childBounds = nodeBound.ChildBounds;
-        IAsyncEnumerable<KeyValuePair<Point, TValue>>? results = null;
+        IAsyncEnumerable<PointItem<TValue>>? results = null;
             
         for (var index = 0; index < childIds.Length; index++)
         {
@@ -381,7 +381,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             }
         }
         
-        return results ?? Utilities.AsyncEmpty<KeyValuePair<Point, TValue>>();
+        return results ?? Utilities.AsyncEmpty<PointItem<TValue>>();
     }
 
     /// <summary>
@@ -390,7 +390,7 @@ public sealed class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
-    public async IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
+    public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         Bound bound, [EnumeratorCancellation] CancellationToken ct = default)
     {
         // Unwrap all nested asynchronous tasks.

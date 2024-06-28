@@ -52,7 +52,7 @@ double x = 30000.0;
 double y = 40000.0;
 double width = 35000.0;
 double height = 23000.0;
-foreach (KeyValuePair<Point, string> entry in
+foreach (PointItem<string> entry in
     await session.LookupBoundAsync(new Bound(x, y, width, height)))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
@@ -176,9 +176,8 @@ var r = new Random();
 
 await session.InsertPointsAsync(
     Enumerable.Range(0, count).
-    Select(_ => new KeyValuePair<Point, string>(
-        new Point(r.Next(0, width - 1), r.Next(0, height - 1)),
-        $"Point{index}"));
+    Select(_ => Point.Create(
+        r.Next(0, width - 1), r.Next(0, height - 1), $"Point{index}")));
 ```
 
 ### Lookup coordinate points
@@ -192,8 +191,8 @@ With exact coordinate point by `LookupPointAsync()`:
 
 Point targetPoint = new Point(31234.0, 45678.0);
 
-foreach (KeyValuePair<Point, string> entry in
-    await quadTree.LookupPointAsync(targetPoint))
+foreach (PointItem<string> entry in
+    await session.LookupPointAsync(targetPoint))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
@@ -205,8 +204,8 @@ With coordinate range by `LookupBoundAsync()`:
 // Extract values by specifying coordinate range.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 
-foreach (KeyValuePair<Point, string> entry in
-    await quadTree.LookupBoundAsync(targetBound))
+foreach (PointItem<string> entry in
+    await session.LookupBoundAsync(targetBound))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
@@ -221,8 +220,8 @@ Use `EnumerateBoundAsync()`:
 // Extract values on asynchronous iterator.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 
-await foreach (KeyValuePair<Point, string> entry in
-    quadTree.EnumerateBoundAsync(targetBound))
+await foreach (PointItem<string> entry in
+    session.EnumerateBoundAsync(targetBound))
 {
     Console.WriteLine($"{entry.Key}: {entry.Value}");
 }
@@ -239,7 +238,7 @@ With exact coordinate point by `RemovePointsAsync()`:
 // Remove exact coordinate point.
 Point targetPoint = new Point(31234.0, 45678.0);
 
-long removed = await quadTree.RemovePointsAsync(targetPoint);
+long removed = await session.RemovePointsAsync(targetPoint);
 ```
 
 With coordinate range by `RemoveBoundAsync()`:
@@ -248,7 +247,7 @@ With coordinate range by `RemoveBoundAsync()`:
 // Remove coordinate range.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 
-long removed = await quadTree.RemoveBoundAsync(targetBound);
+long removed = await session.RemoveBoundAsync(targetBound);
 ```
 
 ### Perform index shrinking
@@ -263,7 +262,7 @@ While understanding this drawback, set the `performShrinking` argument to `true`
 // Remove coordinate range with index shrinking.
 Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
 
-long removed = await quadTree.RemoveBoundAsync(
+long removed = await session.RemoveBoundAsync(
     targetBound, performShrinking: true);
 ```
 

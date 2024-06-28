@@ -225,7 +225,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         /// <returns>Inserted points</returns>
         /// <remarks>You can override this method to provide your own bulk insertion.</remarks>
         public virtual async ValueTask<int> InsertPointsAsync(
-            long nodeId, IReadOnlyArray<KeyValuePair<Point, TValue>> points, int offset, CancellationToken ct)
+            long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
         {
             using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointCountQuery, ct);
@@ -245,12 +245,12 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 if (await insertCommand.ExecuteNonQueryAsync(
                     ct,
                     nodeId,
-                    pointItem.Key.X,
-                    pointItem.Key.Y,
+                    pointItem.Point.X,
+                    pointItem.Point.Y,
                     (object?)pointItem.Value ?? DBNull.Value) != 1)
                 {
                     throw new InvalidDataException(
-                        $"AddPoint: NodeId={nodeId}, Point={pointItem.Key}");
+                        $"AddPoint: NodeId={nodeId}, Point={pointItem.Point}");
                 }
             }
 
@@ -362,12 +362,12 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
-        public async ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
+        public async ValueTask<PointItem<TValue>[]> LookupPointAsync(
             long nodeId, Point targetPoint, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointQuery, ct);
-            var results = new List<KeyValuePair<Point, TValue>>();
+            var results = new List<PointItem<TValue>>();
             await command.ExecuteReadRecordsAsync(
                 record => results.Add(new(new(record.GetDouble(0), record.GetDouble(1)), (TValue)record.GetValue(2))),
                 ct,
@@ -377,15 +377,15 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             return results.ToArray();
         }
 
-        public async ValueTask<KeyValuePair<Point, TValue>[]> LookupBoundAsync(
+        public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
             long nodeId, Bound targetBound, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
-            var results = new List<KeyValuePair<Point, TValue>>();
+            var results = new List<PointItem<TValue>>();
             await command.ExecuteReadRecordsAsync(
                 record => results.Add(
-                    new(new(record.GetDouble(0), record.GetDouble(1)), (TValue)record.GetValue(2))),
+                    new(record.GetDouble(0), record.GetDouble(1), (TValue)record.GetValue(2))),
                 ct,
                 nodeId,
                 targetBound.X,
@@ -395,14 +395,14 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             return results.ToArray();
         }
 
-        public async IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
+        public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
             long nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
             await foreach (var result in command.ExecuteEnumerateAsync(
-               record => new KeyValuePair<Point, TValue>(
-                   new(record.GetDouble(0), record.GetDouble(1)), (TValue)record.GetValue(2)),
+               record => new PointItem<TValue>(
+                   record.GetDouble(0), record.GetDouble(1), (TValue)record.GetValue(2)),
                ct,
                nodeId,
                targetBound.X,

@@ -80,7 +80,7 @@ public sealed class QuadTreeTests_InMemory
                         {
                             var p = new Point(r.Next(0, 99999), r.Next(0, 99999));
                             allPoints[index + i] = p;
-                            return new KeyValuePair<Point, long>(p, index + i);
+                            return new PointItem<long>(p, index + i);
                         }).
                         ToArray();
 
@@ -106,7 +106,7 @@ public sealed class QuadTreeTests_InMemory
 
                         var f1 = results.Any(entry => entry.Value == index);
                         Assert.That(f1, Is.True);
-                        var f2 = results.All(entry => entry.Key.Equals(point));
+                        var f2 = results.All(entry => entry.Point.Equals(point));
                         Assert.That(f2, Is.True);
                     }));
             }
@@ -132,8 +132,8 @@ public sealed class QuadTreeTests_InMemory
             var r = new Random();
             await session.InsertPointsAsync(
                 RangeLong(0, count).
-                Select(index => new KeyValuePair<Point, long>(
-                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+                Select(index => new PointItem<long>(
+                    r.Next(0, 99999), r.Next(0, 99999), index)));
         }
         finally
         {
@@ -177,8 +177,8 @@ public sealed class QuadTreeTests_InMemory
             var r = new Random();
             await session.InsertPointsAsync(
                 Select(RangeLongAsync(0, count),
-                    index => new KeyValuePair<Point, long>(
-                    new Point(r.Next(0, 99999), r.Next(0, 99999)), index)));
+                    index => new PointItem<long>(
+                    r.Next(0, 99999), r.Next(0, 99999), index)));
         }
         finally
         {
@@ -212,7 +212,7 @@ public sealed class QuadTreeTests_InMemory
 
                 var f1 = results.Any(entry => entry.Value == index);
                 Assert.That(f1, Is.True);
-                var f2 = results.All(entry => entry.Key.Equals(point));
+                var f2 = results.All(entry => entry.Point.Equals(point));
                 Assert.That(f2, Is.True);
             }
         }
@@ -301,7 +301,7 @@ public sealed class QuadTreeTests_InMemory
                     Select(entry => (long)entry.index).
                     ToArray();
 
-                var results = new List<KeyValuePair<Point, long>>();
+                var results = new List<PointItem<long>>();
                 await foreach (var entry in session.EnumerateBoundAsync(bound, default))
                 {
                     results.Add(entry);

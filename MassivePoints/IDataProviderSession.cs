@@ -81,7 +81,7 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Inserted points</returns>
     ValueTask<int> InsertPointsAsync(
-        TNodeId nodeId, IReadOnlyArray<KeyValuePair<Point, TValue>> points, int offset, CancellationToken ct);
+        TNodeId nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct);
 
     ValueTask<QuadTreeNode<TNodeId>> DistributePointsAsync(
         TNodeId nodeId, Bound[] toBounds, CancellationToken ct);
@@ -89,13 +89,13 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     ValueTask AggregatePointsAsync(
         TNodeId[] nodeIds, Bound toBound, TNodeId toNodeId, CancellationToken ct);
 
-    ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
+    ValueTask<PointItem<TValue>[]> LookupPointAsync(
         TNodeId nodeId, Point targetPoint, CancellationToken ct);
 
-    ValueTask<KeyValuePair<Point, TValue>[]> LookupBoundAsync(
+    ValueTask<PointItem<TValue>[]> LookupBoundAsync(
         TNodeId nodeId, Bound targetBound, CancellationToken ct);
 
-    IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
+    IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         TNodeId nodeId, Bound targetBound, CancellationToken ct);
 
     ValueTask<RemoveResults> RemovePointsAsync(

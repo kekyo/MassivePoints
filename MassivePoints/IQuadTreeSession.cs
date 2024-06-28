@@ -48,7 +48,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="points">Coordinate point and values</param>
     /// <param name="ct">`CancellationToken`</param>
     ValueTask InsertPointsAsync(
-        IEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default);
+        IEnumerable<PointItem<TValue>> points, CancellationToken ct = default);
 
     /// <summary>
     /// Bulk insert coordinate points.
@@ -56,7 +56,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="points">Coordinate point and values</param>
     /// <param name="ct">`CancellationToken`</param>
     ValueTask InsertPointsAsync(
-        IAsyncEnumerable<KeyValuePair<Point, TValue>> points, CancellationToken ct = default);
+        IAsyncEnumerable<PointItem<TValue>> points, CancellationToken ct = default);
 
     /// <summary>
     /// Lookup values with a coordinate point.
@@ -64,7 +64,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="point">Coordinate point</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    ValueTask<KeyValuePair<Point, TValue>[]> LookupPointAsync(
+    ValueTask<PointItem<TValue>[]> LookupPointAsync(
         Point point, CancellationToken ct = default);
     
     /// <summary>
@@ -73,7 +73,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    ValueTask<KeyValuePair<Point, TValue>[]> LookupBoundAsync(
+    ValueTask<PointItem<TValue>[]> LookupBoundAsync(
         Bound bound, CancellationToken ct = default);
     
     /// <summary>
@@ -82,7 +82,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
-    IAsyncEnumerable<KeyValuePair<Point, TValue>> EnumerateBoundAsync(
+    IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         Bound bound, CancellationToken ct = default);
 
     /// <summary>

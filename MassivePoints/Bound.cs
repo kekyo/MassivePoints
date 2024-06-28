@@ -30,22 +30,22 @@ public sealed class Bound
     /// <summary>
     /// X
     /// </summary>
-    public readonly double X;
+    public double X { get; }
     
     /// <summary>
     /// Y
     /// </summary>
-    public readonly double Y;
-    
+    public double Y { get; }
+
     /// <summary>
     /// Range width
     /// </summary>
-    public readonly double Width;
+    public double Width { get; }
 
     /// <summary>
     /// Range height
     /// </summary>
-    public readonly double Height;
+    public double Height { get; }
 
     public Bound(double width, double height)
     {
@@ -157,4 +157,13 @@ public sealed class Bound
 
     public static implicit operator Bound((double x, double y, double width, double height) bound) =>
         new(bound.x, bound.y, bound.width, bound.height);
+
+    public static Bound Create(double width, double height) =>
+        new(width, height);
+
+    public static Bound Create(Point point, double width, double height) =>
+        new(point, width, height);
+
+    public static Bound Create(double x, double y, double width, double height) =>
+        new(x, y, width, height);
 }
