@@ -7,10 +7,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Data;
+using MassivePoints.DataProvider;
+using MassivePoints.InMemory;
 using System;
 using System.Data.Common;
-using MassivePoints.InMemory;
-using MassivePoints.Data;
 
 // Parameter has no matching param tag in the XML comment (but other parameters do)
 #pragma warning disable CS1573

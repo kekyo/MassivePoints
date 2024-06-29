@@ -8,13 +8,12 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using MassivePoints.Collections;
-using MassivePoints.Internal;
+using MassivePoints.DataProvider;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 

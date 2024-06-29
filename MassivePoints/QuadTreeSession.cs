@@ -8,6 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using MassivePoints.Collections;
+using MassivePoints.DataProvider;
 using MassivePoints.Internal;
 using System;
 using System.Collections.Generic;

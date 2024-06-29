@@ -7,6 +7,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Collections;
+using MassivePoints.DataProvider;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,8 +17,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using MassivePoints.Collections;
-using Nito.AsyncEx;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
@@ -35,6 +36,11 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
     private readonly int maxNodePoints;
     private int maxNodeId = 0;
 
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="entire">The overall range of the coordinate points managed</param>
+    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     public InMemoryDataProvider(
         Bound entire,
         int maxNodePoints = 65536)

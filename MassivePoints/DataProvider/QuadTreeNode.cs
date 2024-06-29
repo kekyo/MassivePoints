@@ -9,7 +9,7 @@
 
 using System.ComponentModel;
 
-namespace MassivePoints;
+namespace MassivePoints.DataProvider;
 
 /// <summary>
 /// The QuadTree node information.

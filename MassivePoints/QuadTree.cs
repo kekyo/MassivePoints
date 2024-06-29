@@ -9,6 +9,7 @@
 
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.DataProvider;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998

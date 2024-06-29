@@ -8,6 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using MassivePoints.Collections;
+using MassivePoints.DataProvider;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -19,8 +20,14 @@ using System.Threading.Tasks;
 
 namespace MassivePoints.Data;
 
+/// <summary>
+/// Database configuration.
+/// </summary>
 public sealed class DbDataProviderConfiguration
 {
+    /// <summary>
+    /// Database metadata prefix name.
+    /// </summary>
     public string Prefix { get; set; } = "quadtree";
 }
 
@@ -48,6 +55,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
     private readonly DbQueryDefinition deletePointQuery;
     private readonly DbQueryDefinition deleteBoundQuery;
 
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="connectionFactory">`DbConnection` factory</param>
+    /// <param name="configuration">Database configuration</param>
+    /// <param name="entire">The overall range of the coordinate points managed</param>
+    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     public DbDataProvider(
         Func<DbConnection> connectionFactory,
         DbDataProviderConfiguration configuration,
