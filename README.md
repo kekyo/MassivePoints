@@ -131,11 +131,23 @@ IQuadTree<string> quadTree = QuadTree.Factory.Create(provider);
 You have to use `BeginSessionAsync()` to start QuadTree manipulation:
 
 ```csharp
-// Begin a update session.
+// Begin a reading session.
 await using (IQuadTreeSession<string> session =
-    await quadTree.BeginSessionAsync(true))
+    await quadTree.BeginSessionAsync())
 {
-    // (Do insert, lookup and remove operations)
+    // (Do lookup manipulation)
+    await session.LookupPointAsync(...);
+}
+```
+
+Or, use `BeginUpdateSessionAsync()` to start updating QuadTree manipulation:
+
+```csharp
+// Begin a update session.
+await using (IQuadTreeUpdateSession<string> session =
+    await quadTree.BeginUpdateSessionAsync())
+{
+    // (Do insert, lookup and remove manipulation)
     await session.InsertPointAsync(...);
 
     // Finish a session.
@@ -143,14 +155,14 @@ await using (IQuadTreeSession<string> session =
 }
 ```
 
-The argument `willUpdate` indicates whether coordinate points will be inserted or removed during this session.
-If `true`, the concurrent operation may fail.
-Conversely if `false`, concurrent operation is possible and multiple lookup operations may be performed simultaneously.
+These methods can be categorized according to whether or not they perform an update process.
+If use `BeginUpdateSessionAsync()`, the concurrent operation may fail.
+Conversely if `BeginSessionAsync()`, concurrent operation is possible and multiple lookup operations may be performed simultaneously.
 
-|`willUpdate`|Lookup|Update: Insert,Remove|Concurrency|
-|:----|:----|:----|:----|
-|`true`|Yes|Yes|No|
-|`false`|Yes|No|Yes|
+|Method|Lookup|Update: Insert,Remove|Concurrency|
+|:----------------------------|:----|:----|:----|
+|`BeginUpdateSessionAsync()`|Yes|Yes|No|
+|`BeginSessionAsync()`|Yes|No|Yes|
 
 Also, be sure to call `FinishAsync()` after any updates.
 Depending on the backend data provider, the updates may be undone.
@@ -281,6 +293,8 @@ Apache-v2
 
 ## History
 
+* 0.10.0:
+  * Split session interface between updatable and readable.
 * 0.9.0:
   * Added bulk insert features.
   * Improved concurrency.

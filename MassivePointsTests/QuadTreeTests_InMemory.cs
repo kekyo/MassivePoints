@@ -29,7 +29,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -68,7 +68,7 @@ public sealed class QuadTreeTests_InMemory
 
         var allPoints = new Point[count];
 
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -93,27 +93,20 @@ public sealed class QuadTreeTests_InMemory
             }
         }
 
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
-            {
-                await Task.WhenAll(
-                    RangeLong(0L, count).
-                    Select(async index =>
-                    {
-                        var point = allPoints[index];
-                        var results = await session.LookupPointAsync(point);
+            await Task.WhenAll(
+                RangeLong(0L, count).
+                Select(async index =>
+                {
+                    var point = allPoints[index];
+                    var results = await session.LookupPointAsync(point);
 
-                        var f1 = results.Any(entry => entry.Value == index);
-                        Assert.That(f1, Is.True);
-                        var f2 = results.All(entry => entry.Point.Equals(point));
-                        Assert.That(f2, Is.True);
-                    }));
-            }
-            finally
-            {
-                await session.FinishAsync();
-            }
+                    var f1 = results.Any(entry => entry.Value == index);
+                    Assert.That(f1, Is.True);
+                    var f2 = results.All(entry => entry.Point.Equals(point));
+                    Assert.That(f2, Is.True);
+                }));
         }
     }
 
@@ -125,7 +118,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -170,7 +163,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -191,7 +184,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -227,7 +220,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -274,7 +267,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -327,7 +320,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -368,7 +361,7 @@ public sealed class QuadTreeTests_InMemory
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {

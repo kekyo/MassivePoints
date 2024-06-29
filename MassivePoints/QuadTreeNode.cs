@@ -7,8 +7,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System.ComponentModel;
+
 namespace MassivePoints;
 
+/// <summary>
+/// The QuadTree node information.
+/// </summary>
+/// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
 public sealed class QuadTreeNode<TNodeId>
 {
     private TNodeId[]? childIds;

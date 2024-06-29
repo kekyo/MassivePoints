@@ -21,11 +21,18 @@ namespace MassivePoints;
 public interface IQuadTree<TValue>
 {
     /// <summary>
-    /// Begin a session.
+    /// Begin a reading session.
     /// </summary>
-    /// <param name="willUpdate">True if possibility changes will be made during the session</param>
     /// <param name="ct">`CancellationToken`</param>
-    /// <returns>The session</returns>
+    /// <returns>The reading session</returns>
     ValueTask<IQuadTreeSession<TValue>> BeginSessionAsync(
-        bool willUpdate, CancellationToken ct = default);
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// Begin an update session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The update session</returns>
+    ValueTask<IQuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+        CancellationToken ct = default);
 }

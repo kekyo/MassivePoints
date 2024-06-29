@@ -72,7 +72,7 @@ public sealed class QuadTreeTests_SQLite
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -109,7 +109,7 @@ public sealed class QuadTreeTests_SQLite
 
         var allPoints = new Point[count];
 
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -134,27 +134,20 @@ public sealed class QuadTreeTests_SQLite
             }
         }
 
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
-            {
-                await Task.WhenAll(
-                    RangeLong(0L, count).
-                    Select(async index =>
-                    {
-                        var point = allPoints[index];
-                        var results = await session.LookupPointAsync(point);
+            await Task.WhenAll(
+                RangeLong(0L, count).
+                Select(async index =>
+                {
+                    var point = allPoints[index];
+                    var results = await session.LookupPointAsync(point);
 
-                        var f1 = results.Any(entry => entry.Value == index);
-                        Assert.That(f1, Is.True);
-                        var f2 = results.All(entry => entry.Point.Equals(point));
-                        Assert.That(f2, Is.True);
-                    }));
-            }
-            finally
-            {
-                await session.FinishAsync();
-            }
+                    var f1 = results.Any(entry => entry.Value == index);
+                    Assert.That(f1, Is.True);
+                    var f2 = results.All(entry => entry.Point.Equals(point));
+                    Assert.That(f2, Is.True);
+                }));
         }
     }
 
@@ -180,7 +173,7 @@ public sealed class QuadTreeTests_SQLite
 
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -231,7 +224,7 @@ public sealed class QuadTreeTests_SQLite
 
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -260,7 +253,7 @@ public sealed class QuadTreeTests_SQLite
 
         var points = new Point[count];
         
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -278,24 +271,17 @@ public sealed class QuadTreeTests_SQLite
             }
         }
 
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
+            for (var index = 0L; index < count; index++)
             {
-                for (var index = 0L; index < count; index++)
-                {
-                    var point = points[index];
-                    var results = await session.LookupPointAsync(point);
+                var point = points[index];
+                var results = await session.LookupPointAsync(point);
 
-                    var f1 = results.Any(entry => entry.Value == index);
-                    Assert.That(f1, Is.True);
-                    var f2 = results.All(entry => entry.Point.Equals(point));
-                    Assert.That(f2, Is.True);
-                }
-            }
-            finally
-            {
-                await session.FinishAsync();
+                var f1 = results.Any(entry => entry.Value == index);
+                Assert.That(f1, Is.True);
+                var f2 = results.All(entry => entry.Point.Equals(point));
+                Assert.That(f2, Is.True);
             }
         }
     }
@@ -313,7 +299,7 @@ public sealed class QuadTreeTests_SQLite
 
         var points = new Point[count];
         
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -331,36 +317,29 @@ public sealed class QuadTreeTests_SQLite
             }
         }
 
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
+            // Try random bounds lookup, repeats 1000 times.
+            var r = new Random();
+            for (var index = 0; index < 1000; index++)
             {
-                // Try random bounds lookup, repeats 1000 times.
-                var r = new Random();
-                for (var index = 0; index < 1000; index++)
-                {
-                    var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
-                    var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
+                var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
+                var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
 
-                    var expected = points.
-                        Select((p, index) => (p, index)).
-                        Where(entry => bound.IsWithin(entry.p)).
-                        OrderBy(entry => entry.index).
-                        Select(entry => (long)entry.index).
-                        ToArray();
-            
-                    var results = await session.LookupBoundAsync(bound);
-                    var actual = results.
-                        Select(r => r.Value).
-                        OrderBy(index => index).
-                        ToArray();
-            
-                    Assert.That(actual, Is.EqualTo(expected));
-                }
-            }
-            finally
-            {
-                await session.FinishAsync();
+                var expected = points.
+                    Select((p, index) => (p, index)).
+                    Where(entry => bound.IsWithin(entry.p)).
+                    OrderBy(entry => entry.index).
+                    Select(entry => (long)entry.index).
+                    ToArray();
+        
+                var results = await session.LookupBoundAsync(bound);
+                var actual = results.
+                    Select(r => r.Value).
+                    OrderBy(index => index).
+                    ToArray();
+        
+                Assert.That(actual, Is.EqualTo(expected));
             }
         }
     }
@@ -378,7 +357,7 @@ public sealed class QuadTreeTests_SQLite
 
         var points = new Point[count];
         
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -396,41 +375,34 @@ public sealed class QuadTreeTests_SQLite
             }
         }
         
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
+            // Try random bounds lookup, repeats 100 times.
+            var r = new Random();
+            for (var index = 0; index < 1000; index++)
             {
-                // Try random bounds lookup, repeats 100 times.
-                var r = new Random();
-                for (var index = 0; index < 1000; index++)
-                {
-                    var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
-                    var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
+                var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
+                var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
 
-                    var expected = points.
-                        Select((p, index) => (p, index)).
-                        Where(entry => bound.IsWithin(entry.p)).
-                        OrderBy(entry => entry.index).
-                        Select(entry => (long)entry.index).
-                        ToArray();
-            
-                    var results = new List<PointItem<long>>();
-                    await foreach (var entry in session.EnumerateBoundAsync(bound))
-                    {
-                        results.Add(entry);
-                    }
-            
-                    var actual = results.
-                        Select(r => r.Value).
-                        OrderBy(index => index).
-                        ToArray();
-            
-                    Assert.That(actual, Is.EqualTo(expected));
+                var expected = points.
+                    Select((p, index) => (p, index)).
+                    Where(entry => bound.IsWithin(entry.p)).
+                    OrderBy(entry => entry.index).
+                    Select(entry => (long)entry.index).
+                    ToArray();
+        
+                var results = new List<PointItem<long>>();
+                await foreach (var entry in session.EnumerateBoundAsync(bound))
+                {
+                    results.Add(entry);
                 }
-            }
-            finally
-            {
-                await session.FinishAsync();
+        
+                var actual = results.
+                    Select(r => r.Value).
+                    OrderBy(index => index).
+                    ToArray();
+        
+                Assert.That(actual, Is.EqualTo(expected));
             }
         }
     }
@@ -447,7 +419,7 @@ public sealed class QuadTreeTests_SQLite
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -494,7 +466,7 @@ public sealed class QuadTreeTests_SQLite
         
         var quadTree = QuadTree.Factory.Create(provider);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
