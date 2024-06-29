@@ -7,14 +7,31 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using System;
 using System.ComponentModel;
+using System.Linq;
 
 namespace MassivePoints;
+
+public readonly struct Axis
+{
+    public readonly double Element;
+    public readonly double Size;
+
+    public Axis(double element, double size)
+    {
+        this.Element = element;
+        this.Size = size;
+    }
+
+    public override string ToString() =>
+        $"Axis: {this.Element} ({this.Size})";
+}
 
 /// <summary>
 /// This is a structure that defines a coordinate range.
 /// </summary>
-public readonly struct Bound
+public struct Bound
 {
     //         - ------ X ------> +
     // -  +-------------+-------------+
@@ -26,68 +43,109 @@ public readonly struct Bound
     // |  | BottomLeft  | BottomRight |
     // v  |             |             |
     // +  +-------------+-------------+
-    
+
+    private static readonly object locker = new();
+    private static int[] sizes = [1, 2, 4, 8, 16];
+
+    public static int GetChildrenCount(int dimension)
+    {
+        if (dimension >= sizes.Length)
+        {
+            lock (locker)
+            {
+                if (dimension >= sizes.Length)
+                {
+                    var newSizes = new int[dimension + 1];
+                    var size = 1;
+                    for (var index = 0; index <= dimension; index++)
+                    {
+                        newSizes[index] = size;
+                        size *= 2;
+                    }
+                    sizes = newSizes;
+                }
+            }
+        }
+        return sizes[dimension];
+    }
+
+    private readonly Axis[] axes;
+    private Bound[]? childBounds;
+
     /// <summary>
     /// X
     /// </summary>
-    public double X { get; }
+    public double X =>
+        this.axes[0].Element;
     
     /// <summary>
     /// Y
     /// </summary>
-    public double Y { get; }
+    public double Y =>
+        this.axes[1].Element;
 
     /// <summary>
     /// Range width
     /// </summary>
-    public double Width { get; }
+    public double Width =>
+        this.axes[0].Size;
 
     /// <summary>
     /// Range height
     /// </summary>
-    public double Height { get; }
+    public double Height =>
+        this.axes[1].Size;
 
-    public Bound(double width, double height)
-    {
-        this.X = 0;
-        this.Y = 0;
-        this.Width = width;
-        this.Height = height;
-    }
+    public Bound(double width, double height) =>
+        this.axes = [new(0, width), new(0, height)];
 
-    public Bound(Point point, double width, double height)
-    {
-        this.X = point.X;
-        this.Y = point.Y;
-        this.Width = width;
-        this.Height = height;
-    }
+    public Bound(Point point, double width, double height) =>
+        this.axes = [new(point.X, width), new(point.Y, height)];
 
-    public Bound(double x, double y, double width, double height)
-    {
-        this.X = x;
-        this.Y = y;
-        this.Width = width;
-        this.Height = height;
-    }
+    public Bound(double x, double y, double width, double height) =>
+        this.axes = [new(x, width), new(y, height)];
+
+    public Bound(Axis[] axes) =>
+        this.axes = axes;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public Bound[] ChildBounds
     {
         get
         {
-            var wh = this.Width / 2;
-            var hh = this.Height / 2;
-            var topLeft = new Bound(this.X, this.Y, wh, hh);
-            var topRight = new Bound(this.X + wh, this.Y, wh, hh);
-            var bottomLeft = new Bound(this.X, this.Y + hh, wh, hh);
-            var bottomRight = new Bound(this.X + wh, this.Y + hh, wh, hh);
-            return new[] { topLeft, topRight, bottomLeft, bottomRight };
+            if (this.childBounds == null)
+            {
+                var childBounds = new Bound[GetChildrenCount(this.axes.Length)];
+                for (var childIndex = 0; childIndex < childBounds.Length; childIndex++)
+                {
+                    var axes = new Axis[this.axes.Length];
+                    var halfBits = childIndex;
+                    for (var axisIndex = 0; axisIndex < axes.Length; axisIndex++, halfBits >>= 1)
+                    {
+                        var halfSize = this.axes[axisIndex].Size / 2;
+                        if ((halfBits & 0x01) == 0x01)
+                        {
+                            axes[axisIndex] = new Axis(
+                                this.axes[axisIndex].Element + halfSize,
+                                halfSize);
+                        }
+                        else
+                        {
+                            axes[axisIndex] = new Axis(
+                                this.axes[axisIndex].Element,
+                                halfSize);
+                        }
+                    }
+                    childBounds[childIndex] = new Bound(axes);
+                }
+                this.childBounds = childBounds;
+            }
+            return this.childBounds;
         }
     }
 
     public override string ToString() =>
-        $"Bound: [{this.X},{this.Y} - {this.X + this.Width},{this.Y + this.Height}), Size={this.Width},{this.Height}";
+        $"Bound: [{string.Join(",", this.axes.Select(axis => axis.Element))} - {string.Join(",", this.axes.Select(axis => axis.Element + axis.Size))}), Size={string.Join(",", this.axes.Select(axis => axis.Size))}";
 
     public static implicit operator Bound((double width, double height) size) =>
         new(size.width, size.height);
