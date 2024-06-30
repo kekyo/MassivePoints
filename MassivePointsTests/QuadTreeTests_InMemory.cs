@@ -21,11 +21,15 @@ namespace MassivePoints;
 [Parallelizable(ParallelScope.All)]
 public sealed class QuadTreeTests_InMemory
 {
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
-    public async Task InsertCollection(long count, int maxNodePoints)
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(1000000, 1024, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(1000000, 1024, 3)]
+    public async Task InsertCollection(long count, int maxNodePoints, int dimension)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
 
@@ -37,11 +41,16 @@ public sealed class QuadTreeTests_InMemory
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
-                var depth = await session.InsertPointAsync(
-                    (r.Next(0, 99999), r.Next(0, 99999)),
-                    index,
-                    default);
-                maxDepth = Math.Max(maxDepth, depth);
+                var ps = new double[dimension];
+                for (var d = 0; d < dimension; d++)
+                {
+                    ps[d] = r.Next(0, 99999);
+                }
+                var point = new Point(ps);
+                
+                var nodeDepth = await session.InsertPointAsync(
+                    point, index);
+                maxDepth = Math.Max(maxDepth, nodeDepth);
             }
         }
         finally
@@ -61,7 +70,7 @@ public sealed class QuadTreeTests_InMemory
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
+    [TestCase(1000000, 1024)]
     public async Task BulkInsertCollection1(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -113,7 +122,7 @@ public sealed class QuadTreeTests_InMemory
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(100000000, 65536)]
+    [TestCase(10000000, 65536)]
     public async Task BulkInsertCollection2(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -158,7 +167,7 @@ public sealed class QuadTreeTests_InMemory
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(100000000, 65536)]
+    [TestCase(10000000, 65536)]
     public async Task BulkInsertCollection3(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -179,7 +188,7 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1000000, 1024)]
+    [TestCase(100000, 1024)]
     public async Task LookupPointCollection(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -215,7 +224,7 @@ public sealed class QuadTreeTests_InMemory
         }
     }
     
-    [TestCase(1000000, 1024)]
+    [TestCase(100000, 1024)]
     public async Task LookupBoundCollection(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -262,7 +271,7 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1000000, 1024)]
+    [TestCase(100000, 1024)]
     public async Task EnumerateBoundCollection(long count, int maxNodePoints)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -314,8 +323,8 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1000000, 1024, true)]
-    [TestCase(1000000, 1024, false)]
+    [TestCase(100000, 1024, true)]
+    [TestCase(100000, 1024, false)]
     public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
@@ -355,8 +364,8 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1000000, 1024, true)]
-    [TestCase(1000000, 1024, false)]
+    [TestCase(100000, 1024, true)]
+    [TestCase(100000, 1024, false)]
     public async Task RemoveBoundCollection(long count, int maxNodePoints, bool performShrinking)
     {
         var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);

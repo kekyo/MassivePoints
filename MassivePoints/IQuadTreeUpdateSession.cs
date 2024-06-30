@@ -31,8 +31,8 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// <param name="point">Coordinate point</param>
     /// <param name="value">Related value</param>
     /// <param name="ct">`CancellationToken`</param>
-    /// <returns>A depth value where placed the coordinate point</returns>
-    /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
+    /// <returns>A node depth value where placed the coordinate point</returns>
+    /// <remarks>The node depth value indicates how deeply the added coordinate points are placed in the node depth.
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
     ValueTask<int> InsertPointAsync(
         Point point, TValue value, CancellationToken ct = default);

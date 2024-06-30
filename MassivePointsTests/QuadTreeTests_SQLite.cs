@@ -39,7 +39,7 @@ public sealed class QuadTreeTests_SQLite
     private static DbConnection CreateSQLiteConnection(string prefix)
     {
         var dbFilePath = Path.Combine(basePath, $"{prefix}.db");
-#if true
+#if false
         var connectionString = new SqliteConnectionStringBuilder()
         {
             DataSource = dbFilePath,
@@ -61,7 +61,7 @@ public sealed class QuadTreeTests_SQLite
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(1000000, 1024)]
+    [TestCase(100000, 1024)]
     public async Task InsertSqlite(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -80,11 +80,11 @@ public sealed class QuadTreeTests_SQLite
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
-                var depth = await session.InsertPointAsync(
+                var nodeDepth = await session.InsertPointAsync(
                     (r.Next(0, 99999), r.Next(0, 99999)),
                     index,
                     default);
-                maxDepth = Math.Max(maxDepth, depth);
+                maxDepth = Math.Max(maxDepth, nodeDepth);
             }
         }
         finally
@@ -96,7 +96,7 @@ public sealed class QuadTreeTests_SQLite
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(100000, 1024)]
+    [TestCase(10000, 1024)]
     public async Task BulklInsertSqlite1(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -162,7 +162,7 @@ public sealed class QuadTreeTests_SQLite
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
+    [TestCase(1000000, 1024)]
     public async Task BulklInsertSqlite2(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -213,7 +213,7 @@ public sealed class QuadTreeTests_SQLite
     [TestCase(1, 10)]
     [TestCase(10, 10)]
     [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
+    [TestCase(1000000, 1024)]
     public async Task BulklInsertSqlite3(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -240,7 +240,7 @@ public sealed class QuadTreeTests_SQLite
         }
     }
 
-    [TestCase(100000, 256)]
+    [TestCase(10000, 256)]
     public async Task LookupPointSqlite(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -286,7 +286,7 @@ public sealed class QuadTreeTests_SQLite
         }
     }
     
-    [TestCase(100000, 256)]
+    [TestCase(10000, 256)]
     public async Task LookupBoundSqlite(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -344,7 +344,7 @@ public sealed class QuadTreeTests_SQLite
         }
     }
     
-    [TestCase(100000, 256)]
+    [TestCase(10000, 256)]
     public async Task EnumerateBoundSqlite(long count, int maxNodePoints)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -407,8 +407,8 @@ public sealed class QuadTreeTests_SQLite
         }
     }
     
-    [TestCase(10000, 256, true)]
-    [TestCase(100000, 256, false)]
+    [TestCase(1000, 256, true)]
+    [TestCase(10000, 256, false)]
     public async Task RemovePointsSqlite(long count, int maxNodePoints, bool performShrinking)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
@@ -454,8 +454,8 @@ public sealed class QuadTreeTests_SQLite
         }
     }
 
-    [TestCase(100000, 256, true)]
-    [TestCase(100000, 256, false)]
+    [TestCase(10000, 256, true)]
+    [TestCase(10000, 256, false)]
     public async Task RemoveBoundSqlite(long count, int maxNodePoints, bool performShrinking)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>

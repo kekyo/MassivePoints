@@ -49,6 +49,20 @@ public static class QuadTreeFactoryExtension
     /// Create an in-memory data provider.
     /// </summary>
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
+    /// <param name="width">Entire coordinate range</param>
+    /// <param name="height">Entire coordinate range</param>
+    /// <param name="depth">Entire coordinate range</param>
+    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
+    /// <returns>Data provider</returns>
+    public static InMemoryDataProvider<TValue> CreateProvider<TValue>(
+        this QuadTreeFactory _,
+        double width, double height, double depth, int maxNodePoints = 65536) =>
+        new((width, height, depth), maxNodePoints);
+
+    /// <summary>
+    /// Create an in-memory data provider.
+    /// </summary>
+    /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="entire">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>

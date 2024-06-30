@@ -72,42 +72,6 @@ public readonly struct Bound : IEquatable<Bound>
     public readonly Axis[] Axes;
 
     /// <summary>
-    /// X axis origin.
-    /// </summary>
-    public double X =>
-        this.Axes is [var x,..] ? x.Origin : double.NaN;
-    
-    /// <summary>
-    /// Y axis origin.
-    /// </summary>
-    public double Y =>
-        this.Axes is [_,var y,..] ? y.Origin : double.NaN;
-    
-    /// <summary>
-    /// Z axis origin.
-    /// </summary>
-    public double Z =>
-        this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
-
-    /// <summary>
-    /// Range width.
-    /// </summary>
-    public double Width =>
-        this.Axes is [var x,..] ? x.Size : double.NaN;
-
-    /// <summary>
-    /// Range height.
-    /// </summary>
-    public double Height =>
-        this.Axes is [_,var y,..] ? y.Size : double.NaN;
-
-    /// <summary>
-    /// Range depth.
-    /// </summary>
-    public double Depth =>
-        this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
-
-    /// <summary>
     /// Constructor.
     /// </summary>
     /// <param name="width">Range width</param>
@@ -190,6 +154,42 @@ public readonly struct Bound : IEquatable<Bound>
     public Bound(params Axis[] axes) =>
         this.Axes = axes;
 
+    /// <summary>
+    /// X axis origin.
+    /// </summary>
+    public double X =>
+        this.Axes is [var x,..] ? x.Origin : double.NaN;
+    
+    /// <summary>
+    /// Y axis origin.
+    /// </summary>
+    public double Y =>
+        this.Axes is [_,var y,..] ? y.Origin : double.NaN;
+    
+    /// <summary>
+    /// Z axis origin.
+    /// </summary>
+    public double Z =>
+        this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
+
+    /// <summary>
+    /// Range width.
+    /// </summary>
+    public double Width =>
+        this.Axes is [var x,..] ? x.Size : double.NaN;
+
+    /// <summary>
+    /// Range height.
+    /// </summary>
+    public double Height =>
+        this.Axes is [_,var y,..] ? y.Size : double.NaN;
+
+    /// <summary>
+    /// Range depth.
+    /// </summary>
+    public double Depth =>
+        this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
+
     public bool Equals(Bound other)
     {
         if (this.Axes.Length != other.Axes.Length)
@@ -237,6 +237,15 @@ public readonly struct Bound : IEquatable<Bound>
     public static implicit operator Bound((double x, double y, double width, double height) bound) =>
         new Bound(bound.x, bound.y, bound.width, bound.height);
 
+    public static implicit operator Bound((double width, double height, double depth) size) =>
+        new Bound(size.width, size.height, size.depth);
+
+    public static implicit operator Bound((Point point, double width, double height, double depth) bound) =>
+        new Bound(bound.point, bound.width, bound.height, bound.depth);
+
+    public static implicit operator Bound((double x, double y, double z, double width, double height, double depth) bound) =>
+        new Bound(bound.x, bound.y, bound.z, bound.width, bound.height, bound.depth);
+
     public static Bound Create(double width, double height) =>
         new Bound(width, height);
 
@@ -245,4 +254,13 @@ public readonly struct Bound : IEquatable<Bound>
 
     public static Bound Create(double x, double y, double width, double height) =>
         new Bound(x, y, width, height);
+
+    public static Bound Create(double width, double height, double depth) =>
+        new Bound(width, height, depth);
+
+    public static Bound Create(Point point, double width, double height, double depth) =>
+        new Bound(point, width, height, depth);
+
+    public static Bound Create(double x, double y, double z, double width, double height, double depth) =>
+        new Bound(x, y, z, width, height, depth);
 }
