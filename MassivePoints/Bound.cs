@@ -8,12 +8,11 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System;
-using System.ComponentModel;
 using System.Linq;
 
 namespace MassivePoints;
 
-public readonly struct Axis
+public readonly struct Axis : IEquatable<Axis>
 {
     public readonly double Origin;
     public readonly double Size;
@@ -23,6 +22,20 @@ public readonly struct Axis
         this.Origin = origin;
         this.Size = size;
     }
+
+    public bool Equals(Axis other) =>
+        this.Origin == other.Origin &&
+        this.Size == other.Size;
+
+    bool IEquatable<Axis>.Equals(Axis other) =>
+        this.Equals(other);
+
+    public override bool Equals(object? obj) =>
+        obj is Axis rhs && this.Equals(rhs);
+
+    public override int GetHashCode() =>
+        (this.Origin.GetHashCode() * 397) ^
+        this.Size.GetHashCode();
 
     public override string ToString() =>
         $"Axis: {this.Origin} ({this.Size})";
@@ -34,22 +47,27 @@ public readonly struct Axis
         origin = this.Origin;
         size = this.Size;
     }
+
+    public static implicit operator Axis((double origin, double size) axis) =>
+        new Axis(axis.origin, axis.size);
 }
 
 /// <summary>
 /// This is a structure that defines a coordinate range.
 /// </summary>
-public struct Bound
+public readonly struct Bound : IEquatable<Bound>
 {
     //         - ------ X ------> +
     // -  +-------------+-------------+
     // |  |             |             |
     // |  | TopLeft     | TopRight    |
+    // |  |   Axes[0]   |   Axes[1]   |
     // |  |             |             |
     // Y  +-------------+-------------+
     // |  |             |             |
     // |  | BottomLeft  | BottomRight |
-    // v  |             |             |
+    // v  |   Axes[2]   |   Axes[3]   |
+    // |  |             |             |
     // +  +-------------+-------------+
 
     private static readonly object locker = new();
@@ -79,63 +97,95 @@ public struct Bound
 
     public readonly Axis[] Axes;
 
-    /// <summary>
-    /// X
-    /// </summary>
-    public double X =>
-        this.Axes[0].Origin;
+    // <summary>
+    // X
+    // </summary>
+    //public double X =>
+    //    this.Axes[0].Origin;
     
-    /// <summary>
-    /// Y
-    /// </summary>
-    public double Y =>
-        this.Axes[1].Origin;
+    // <summary>
+    // Y
+    // </summary>
+    //public double Y =>
+    //    this.Axes[1].Origin;
 
-    /// <summary>
-    /// Range width
-    /// </summary>
-    public double Width =>
-        this.Axes[0].Size;
+    // <summary>
+    // Range width
+    // </summary>
+    //public double Width =>
+    //    this.Axes[0].Size;
 
-    /// <summary>
-    /// Range height
-    /// </summary>
-    public double Height =>
-        this.Axes[1].Size;
+    // <summary>
+    // Range height
+    // </summary>
+    //public double Height =>
+    //    this.Axes[1].Size;
 
     public Bound(double width, double height) =>
-        this.Axes = [new(0, width), new(0, height)];
+        this.Axes = [new Axis(0, width), new Axis(0, height)];
 
     public Bound(Point point, double width, double height) =>
-        this.Axes = [new(point.X, width), new(point.Y, height)];
+        this.Axes = [new Axis(point.Elements[0], width), new Axis(point.Elements[1], height)];
 
     public Bound(double x, double y, double width, double height) =>
-        this.Axes = [new(x, width), new(y, height)];
+        this.Axes = [new Axis(x, width), new Axis(y, height)];
 
     public Bound(Axis[] axes) =>
         this.Axes = axes;
 
-    //public Bound[] ChildBounds =>
-    //    this.GetChildBounds();
+    public bool Equals(Bound other)
+    {
+        if (this.Axes.Length != other.Axes.Length)
+        {
+            return false;
+        }
+        for (var index = 0; index < this.Axes.Length; index++)
+        {
+            if (this.Axes[index].Equals(other.Axes[index]) == false)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool IEquatable<Bound>.Equals(Bound other) =>
+        this.Equals(other);
+
+    public override bool Equals(object? obj) =>
+        obj is Bound rhs && this.Equals(rhs);
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = 0;
+            for (var index = 0; index < this.Axes.Length; index++)
+            {
+                hash ^= this.Axes[index].GetHashCode() * 397;
+            }
+            return hash;
+        }
+    }
 
     public override string ToString() =>
         $"Bound: [{string.Join(",", this.Axes.Select(axis => axis.Origin))} - {string.Join(",", this.Axes.Select(axis => axis.Origin + axis.Size))}), Size={string.Join(",", this.Axes.Select(axis => axis.Size))}";
 
     public static implicit operator Bound((double width, double height) size) =>
-        new(size.width, size.height);
+        new Bound(size.width, size.height);
 
     public static implicit operator Bound((Point point, double width, double height) bound) =>
-        new(bound.point, bound.width, bound.height);
+        new Bound(bound.point, bound.width, bound.height);
 
     public static implicit operator Bound((double x, double y, double width, double height) bound) =>
-        new(bound.x, bound.y, bound.width, bound.height);
+        new Bound(bound.x, bound.y, bound.width, bound.height);
 
     public static Bound Create(double width, double height) =>
-        new(width, height);
+        new Bound(width, height);
 
     public static Bound Create(Point point, double width, double height) =>
-        new(point, width, height);
+        new Bound(point, width, height);
 
     public static Bound Create(double x, double y, double width, double height) =>
-        new(x, y, width, height);
+        new Bound(x, y, width, height);
 }

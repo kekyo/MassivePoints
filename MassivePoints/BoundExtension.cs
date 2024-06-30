@@ -24,9 +24,9 @@ public static class BoundExtension
         out double width,
         out double height)
     {
-        origin = new(self.X, self.Y);
-        width = self.Width;
-        height = self.Height;
+        origin = new(self.Axes[0].Origin, self.Axes[1].Origin);
+        width = self.Axes[0].Size;
+        height = self.Axes[1].Size;
     }
 
     public static void Deconstruct(
@@ -36,10 +36,10 @@ public static class BoundExtension
         out double width,
         out double height)
     {
-        x = self.X;
-        y = self.Y;
-        width = self.Width;
-        height = self.Height;
+        x = self.Axes[0].Origin;
+        y = self.Axes[1].Origin;
+        width = self.Axes[0].Size;
+        height = self.Axes[1].Size;
     }
 
     public static Bound[] GetChildBounds(
@@ -86,8 +86,7 @@ public static class BoundExtension
     {
         if (self.Axes.Length != point.Elements.Length)
         {
-            throw new ArgumentException(
-                $"Could not compare difference dimension: {self.Axes.Length} != {point.Elements.Length}");
+            return false;
         }
 
         for (var index = 0; index < self.Axes.Length; index++)
@@ -126,8 +125,7 @@ public static class BoundExtension
     {
         if (self.Axes.Length != bound.Axes.Length)
         {
-            throw new ArgumentException(
-                $"Could not compare difference dimension: {self.Axes.Length} != {bound.Axes.Length}");
+            return false;
         }
 
         for (var index = 0; index < self.Axes.Length; index++)

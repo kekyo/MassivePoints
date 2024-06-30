@@ -13,27 +13,28 @@ namespace MassivePoints;
 
 public readonly struct Point : IEquatable<Point>
 {
-    private readonly double[] elements;
+    public readonly double[] Elements;
 
-    public double X =>
-        this.elements[0];
-    public double Y =>
-        this.elements[1];
-    public double[] Elements =>
-        this.elements;
+    public Point(double[] elements) =>
+        this.Elements = elements;
 
     public Point(double x, double y) =>
-        this.elements = [ x, y ];
+        this.Elements = [x, y];
+
+    //public double X =>
+    //    this.Elements[0];
+    //public double Y =>
+    //    this.Elements[1];
 
     public bool Equals(Point rhs)
     {
-        if (this.elements.Length != rhs.elements.Length)
+        if (this.Elements.Length != rhs.Elements.Length)
         {
             return false;
         }
-        for (var index = 0; index < this.elements.Length; index++)
+        for (var index = 0; index < this.Elements.Length; index++)
         {
-            if (this.elements[index] != rhs.elements[index])
+            if (this.Elements[index] != rhs.Elements[index])
             {
                 return false;
             }
@@ -49,7 +50,7 @@ public readonly struct Point : IEquatable<Point>
         unchecked
         {
             var sum = 0;
-            foreach (var element in this.elements)
+            foreach (var element in this.Elements)
             {
                 sum ^= element.GetHashCode() * 397;
             }
@@ -58,23 +59,28 @@ public readonly struct Point : IEquatable<Point>
     }
 
     public override string ToString() =>
-        $"[{string.Join(",", this.elements)}]";
+        $"[{string.Join(",", this.Elements)}]";
 
     public static implicit operator Point((double x, double y) point) =>
         new(point.x, point.y);
 
     public static Point Create(double x, double y) =>
-        new(x, y);
+        new Point(x, y);
 }
 
 public static class PointExtension
 {
     public static void Deconstruct(
         this Point self,
+        out double[] elements) =>
+        elements = self.Elements;
+
+    public static void Deconstruct(
+        this Point self,
         out double x,
         out double y)
     {
-        x = self.X;
-        y = self.Y;
+        x = self.Elements[0];
+        y = self.Elements[1];
     }
 }

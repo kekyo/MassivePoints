@@ -17,10 +17,10 @@ public readonly struct PointItem<TValue> : IEquatable<PointItem<TValue>>
     public Point Point { get; }
     public TValue Value { get; }
 
-    public double X =>
-        this.Point.X;
-    public double Y =>
-        this.Point.Y;
+    //public double X =>
+    //    this.Point.Elements[0];
+    //public double Y =>
+    //    this.Point.Elements[1];
 
     public PointItem(Point point, TValue value)
     {
@@ -43,6 +43,9 @@ public readonly struct PointItem<TValue> : IEquatable<PointItem<TValue>>
     public bool Equals(PointItem<TValue> rhs) =>
         this.Point.Equals(rhs.Point) &&
         (this.Value?.Equals(rhs.Value) ?? ((object?)rhs) == null);
+
+    bool IEquatable<PointItem<TValue>>.Equals(PointItem<TValue> rhs) =>
+        this.Equals(rhs);
 
     public override bool Equals(object? obj) =>
         obj is PointItem<TValue> rhs && this.Equals(rhs);
@@ -79,7 +82,6 @@ public static class PointItem
 
     public static PointItem<TValue> Create<TValue>(KeyValuePair<Point, TValue> pointItem) =>
         new(pointItem.Key, pointItem.Value);
-
 }
 
 public static class PointItemExtension
@@ -99,8 +101,8 @@ public static class PointItemExtension
         out double y,
         out TValue value)
     {
-        x = self.Point.X;
-        y = self.Point.Y;
+        x = self.Point.Elements[0];
+        y = self.Point.Elements[1];
         value = self.Value;
     }
 }

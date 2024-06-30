@@ -17,34 +17,27 @@ namespace MassivePoints.DataProvider;
 /// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
 public sealed class QuadTreeNode<TNodeId>
 {
-    private TNodeId[]? childIds;
-    
-    public readonly TNodeId TopLeftId;
-    public readonly TNodeId TopRightId;
-    public readonly TNodeId BottomLeftId;
-    public readonly TNodeId BottomRightId;
-    
-    public QuadTreeNode(
-        TNodeId topLeftNodeId, TNodeId topRightNodeId, TNodeId bottomLeftNodeId, TNodeId bottomRightNodeId)
-    {
-        this.TopLeftId = topLeftNodeId;
-        this.TopRightId = topRightNodeId;
-        this.BottomLeftId = bottomLeftNodeId;
-        this.BottomRightId = bottomRightNodeId;
-    }
+    public readonly TNodeId[] ChildIds;
 
-    public TNodeId[] ChildIds
-    {
-        get
-        {
-            if (this.childIds == null)
-            {
-                this.childIds = new[] { this.TopLeftId, TopRightId, BottomLeftId, BottomRightId };
-            }
-            return this.childIds;
-        }
-    }
+    public QuadTreeNode(TNodeId[] childIds) =>
+        this.ChildIds = childIds;
+
+    public QuadTreeNode(
+        TNodeId topLeftNodeId, TNodeId topRightNodeId, TNodeId bottomLeftNodeId, TNodeId bottomRightNodeId) =>
+        this.ChildIds = [topLeftNodeId,topRightNodeId,bottomLeftNodeId,bottomRightNodeId];
+
+    //public TNodeId TopLeftId =>
+    //    this.ChildIds[0];
+
+    //public TNodeId TopRightId =>
+    //    this.ChildIds[1];
+
+    //public TNodeId BottomLeftId =>
+    //    this.ChildIds[2];
+
+    //public TNodeId BottomRightId =>
+    //    this.ChildIds[3];
 
     public override string ToString() =>
-        $"Node: {this.TopLeftId},{this.TopRightId},{this.BottomLeftId},{this.BottomRightId}";
+        $"Node: {string.Join(",", this.ChildIds)}";
 }
