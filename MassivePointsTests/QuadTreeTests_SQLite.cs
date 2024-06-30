@@ -487,7 +487,9 @@ public sealed class QuadTreeTests_SQLite
             }
 
             var removed = 0L;
-            foreach (var childBound in session.Entire.ChildBounds)
+            var childBounds = session.Entire.GetChildBounds();
+            
+            foreach (var childBound in childBounds)
             {
                 removed += await session.RemoveBoundAsync(childBound, performShrinking);
             }

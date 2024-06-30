@@ -59,6 +59,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         int depth,
         CancellationToken ct)
     {
+        Bound[] childBounds;
+        
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             var inserted = await this.providerSession.InsertPointsAsync(
@@ -68,12 +70,16 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 return depth;
             }
 
+            childBounds = nodeBound.GetChildBounds();
             node = await this.providerSession.DistributePointsAsync(
-                nodeId, nodeBound.ChildBounds, ct);
+                nodeId, childBounds, ct);
+        }
+        else
+        {
+            childBounds = nodeBound.GetChildBounds();
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
 
         for (var index = 0; index < childIds.Length; index++)
         {
@@ -113,6 +119,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         CancellationToken ct)
     {
         int offset = 0;
+        Bound[] childBounds;
 
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
@@ -124,12 +131,16 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 return;
             }
 
+            childBounds = nodeBound.GetChildBounds();
             node = await this.providerSession.DistributePointsAsync(
-                nodeId, nodeBound.ChildBounds, ct);
+                nodeId, childBounds, ct);
+        }
+        else
+        {
+            childBounds = nodeBound.GetChildBounds();
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
 
         var splittedLists = new ExpandableArray<PointItem<TValue>>[childIds.Length];
 
@@ -301,7 +312,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node!.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
         var remainsHint = 0;
 
         for (var index = 0; index < childBounds.Length; index++)
@@ -336,7 +347,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
 
         if (performShrinking)
         {
@@ -420,7 +431,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
 
         if (performShrinking)
         {
