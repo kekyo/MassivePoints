@@ -140,9 +140,15 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         public async ValueTask<QuadTreeNode<int>> DistributePointsAsync(
             int nodeId, Bound[] toBounds, CancellationToken ct)
         {
-            var baseNodeId = this.parent.maxNodeId;
+            var baseNodeId = this.parent.maxNodeId + 1;
             this.parent.maxNodeId += 4;
-            var node = new QuadTreeNode<int>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
+
+            var childIds = new int[toBounds.Length];
+            for (var index = 0; index < childIds.Length; index++)
+            {
+                childIds[index] = baseNodeId + index;
+            }
+            var node = new QuadTreeNode<int>(childIds);
 
             var points = this.parent.nodePoints[nodeId];
             var toPoints = new ExpandableArray<PointItem<TValue>>[toBounds.Length];

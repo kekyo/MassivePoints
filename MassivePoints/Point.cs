@@ -11,20 +11,50 @@ using System;
 
 namespace MassivePoints;
 
+/// <summary>
+/// The coordinate point definition.
+/// </summary>
 public readonly struct Point : IEquatable<Point>
 {
+    /// <summary>
+    /// Point elements.
+    /// </summary>
     public readonly double[] Elements;
 
-    public Point(double[] elements) =>
-        this.Elements = elements;
-
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">X coordinate point.</param>
+    /// <param name="y">Y coordinate point.</param>
+    /// <remarks>This constructor will create 2D point.</remarks>
     public Point(double x, double y) =>
         this.Elements = [x, y];
 
-    //public double X =>
-    //    this.Elements[0];
-    //public double Y =>
-    //    this.Elements[1];
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">X coordinate point.</param>
+    /// <param name="y">Y coordinate point.</param>
+    /// <param name="z">Z coordinate point.</param>
+    /// <remarks>This constructor will create 3D point.</remarks>
+    public Point(double x, double y, double z) =>
+        this.Elements = [x, y, z];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="elements">Elements</param>
+    public Point(params double[] elements) =>
+        this.Elements = elements;
+
+    /// <summary>
+    /// X point.
+    /// </summary>
+    public double X =>
+        this.Elements[0];
+    
+    public double Y =>
+        this.Elements[1];
 
     public bool Equals(Point rhs)
     {
@@ -62,10 +92,16 @@ public readonly struct Point : IEquatable<Point>
         $"[{string.Join(",", this.Elements)}]";
 
     public static implicit operator Point((double x, double y) point) =>
-        new(point.x, point.y);
+        new Point(point.x, point.y);
+
+    public static implicit operator Point((double x, double y, double z) point) =>
+        new Point(point.x, point.y, point.z);
 
     public static Point Create(double x, double y) =>
         new Point(x, y);
+
+    public static Point Create(double x, double y, double z) =>
+        new Point(x, y, z);
 }
 
 public static class PointExtension
@@ -80,7 +116,35 @@ public static class PointExtension
         out double x,
         out double y)
     {
-        x = self.Elements[0];
-        y = self.Elements[1];
+        if (self.Elements is [var sx, var sy])
+        {
+            x = sx;
+            y = sy;
+        }
+        else
+        {
+            x = double.NaN;
+            y = double.NaN;
+        }
+    }
+
+    public static void Deconstruct(
+        this Point self,
+        out double x,
+        out double y,
+        out double z)
+    {
+        if (self.Elements is [var sx, var sy,var sz])
+        {
+            x = sx;
+            y = sy;
+            z = sz;
+        }
+        else
+        {
+            x = double.NaN;
+            y = double.NaN;
+            z = double.NaN;
+        }
     }
 }

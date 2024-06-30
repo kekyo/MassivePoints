@@ -9,6 +9,9 @@
 
 using System;
 
+// Parameter has no matching param tag in the XML comment (but other parameters do)
+#pragma warning disable CS1573
+
 namespace MassivePoints;
 
 public static class BoundExtension
@@ -24,9 +27,18 @@ public static class BoundExtension
         out double width,
         out double height)
     {
-        origin = new(self.Axes[0].Origin, self.Axes[1].Origin);
-        width = self.Axes[0].Size;
-        height = self.Axes[1].Size;
+        if (self.Axes is [var x, var y])
+        {
+            origin = new(x.Origin, y.Origin);
+            width = x.Size;
+            height = x.Size;
+        }
+        else
+        {
+            origin = new(double.NaN, double.NaN);
+            width = double.NaN;
+            height = double.NaN;
+        }
     }
 
     public static void Deconstruct(
@@ -36,16 +48,34 @@ public static class BoundExtension
         out double width,
         out double height)
     {
-        x = self.Axes[0].Origin;
-        y = self.Axes[1].Origin;
-        width = self.Axes[0].Size;
-        height = self.Axes[1].Size;
+        if (self.Axes is [var sx, var sy])
+        {
+            x = sx.Origin;
+            y = sy.Origin;
+            width = sx.Size;
+            height = sy.Size;
+        }
+        else
+        {
+            x = double.NaN;
+            y = double.NaN;
+            width = double.NaN;
+            height = double.NaN;
+        }
     }
 
+    /// <summary>
+    /// Get child bound count.
+    /// </summary>
+    /// <returns>Child bound count.</returns>
     public static int GetChildBoundCount(
         this Bound self) =>
         Bound.GetChildBoundCount(self.Axes.Length);
 
+    /// <summary>
+    /// Get child bounds.
+    /// </summary>
+    /// <returns>Child bounds</returns>
     public static Bound[] GetChildBounds(
         this Bound self)
     {
@@ -146,4 +176,13 @@ public static class BoundExtension
 
         return true;
     }
+
+    /// <summary>
+    /// Add an axis.
+    /// </summary>
+    /// <param name="axis">Axis</param>
+    /// <returns>New bound definition</returns>
+    public static Bound AddAxis(
+        this Bound self, Axis axis) =>
+        new Bound([..self.Axes, axis]);
 }

@@ -12,46 +12,6 @@ using System.Linq;
 
 namespace MassivePoints;
 
-public readonly struct Axis : IEquatable<Axis>
-{
-    public readonly double Origin;
-    public readonly double Size;
-
-    public Axis(double origin, double size)
-    {
-        this.Origin = origin;
-        this.Size = size;
-    }
-
-    public bool Equals(Axis other) =>
-        this.Origin == other.Origin &&
-        this.Size == other.Size;
-
-    bool IEquatable<Axis>.Equals(Axis other) =>
-        this.Equals(other);
-
-    public override bool Equals(object? obj) =>
-        obj is Axis rhs && this.Equals(rhs);
-
-    public override int GetHashCode() =>
-        (this.Origin.GetHashCode() * 397) ^
-        this.Size.GetHashCode();
-
-    public override string ToString() =>
-        $"Axis: {this.Origin} ({this.Size})";
-
-    public void Deconstruct(
-        double origin,
-        double size)
-    {
-        origin = this.Origin;
-        size = this.Size;
-    }
-
-    public static implicit operator Axis((double origin, double size) axis) =>
-        new Axis(axis.origin, axis.size);
-}
-
 /// <summary>
 /// This is a structure that defines a coordinate range.
 /// </summary>
@@ -73,6 +33,11 @@ public readonly struct Bound : IEquatable<Bound>
     private static readonly object locker = new();
     private static int[] sizes = [1, 2, 4, 8, 16];
 
+    /// <summary>
+    /// Get child bound count.
+    /// </summary>
+    /// <param name="dimension">Target dimension</param>
+    /// <returns>Child bound count.</returns>
     public static int GetChildBoundCount(int dimension)
     {
         if (dimension >= sizes.Length)
@@ -95,42 +60,134 @@ public readonly struct Bound : IEquatable<Bound>
         return sizes[dimension];
     }
 
+    /// <summary>
+    /// The earth globe (2D) bound.
+    /// </summary>
+    public static readonly Bound TheGlobe2D =
+        new(0.0, -90.0, 360.0, 180);
+
+    /// <summary>
+    /// The axis definitions.
+    /// </summary>
     public readonly Axis[] Axes;
 
-    // <summary>
-    // X
-    // </summary>
-    //public double X =>
-    //    this.Axes[0].Origin;
+    /// <summary>
+    /// X axis origin.
+    /// </summary>
+    public double X =>
+        this.Axes is [var x,..] ? x.Origin : double.NaN;
     
-    // <summary>
-    // Y
-    // </summary>
-    //public double Y =>
-    //    this.Axes[1].Origin;
+    /// <summary>
+    /// Y axis origin.
+    /// </summary>
+    public double Y =>
+        this.Axes is [_,var y,..] ? y.Origin : double.NaN;
+    
+    /// <summary>
+    /// Z axis origin.
+    /// </summary>
+    public double Z =>
+        this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
 
-    // <summary>
-    // Range width
-    // </summary>
-    //public double Width =>
-    //    this.Axes[0].Size;
+    /// <summary>
+    /// Range width.
+    /// </summary>
+    public double Width =>
+        this.Axes is [var x,..] ? x.Size : double.NaN;
 
-    // <summary>
-    // Range height
-    // </summary>
-    //public double Height =>
-    //    this.Axes[1].Size;
+    /// <summary>
+    /// Range height.
+    /// </summary>
+    public double Height =>
+        this.Axes is [_,var y,..] ? y.Size : double.NaN;
 
+    /// <summary>
+    /// Range depth.
+    /// </summary>
+    public double Depth =>
+        this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range based on zero origin.</remarks>
     public Bound(double width, double height) =>
         this.Axes = [new Axis(0, width), new Axis(0, height)];
 
-    public Bound(Point point, double width, double height) =>
-        this.Axes = [new Axis(point.Elements[0], width), new Axis(point.Elements[1], height)];
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="origin">Origin point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(Point origin, double width, double height)
+    {
+        if (origin.Elements is not [var x, var y])
+        {
+            throw new ArgumentException($"Could not create non 2D range: {origin.Elements.Length}");
+        }
+        this.Axes = [new Axis(x, width), new Axis(y, height)];
+    }
 
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">Origin X point</param>
+    /// <param name="y">Origin Y point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
     public Bound(double x, double y, double width, double height) =>
         this.Axes = [new Axis(x, width), new Axis(y, height)];
 
-    public Bound(Axis[] axes) =>
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 3D range based on zero origin.</remarks>
+    public Bound(double width, double height, double depth) =>
+        this.Axes = [new Axis(0, width), new Axis(0, height), new Axis(0, depth)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="origin">Origin point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(Point origin, double width, double height, double depth)
+    {
+        if (origin.Elements is not [var x, var y, var z])
+        {
+            throw new ArgumentException($"Could not create non 3D range: {origin.Elements.Length}");
+        }
+        this.Axes = [new Axis(x, width),new Axis(y, height),new Axis(z, depth)];
+    }
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">Origin X point</param>
+    /// <param name="y">Origin Y point</param>
+    /// <param name="z">Origin Z point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(double x, double y, double z, double width, double height, double depth) =>
+        this.Axes = [new Axis(x, width), new Axis(y, height), new Axis(z, depth)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="axes">The axes define a range</param>
+    public Bound(params Axis[] axes) =>
         this.Axes = axes;
 
     public bool Equals(Bound other)
