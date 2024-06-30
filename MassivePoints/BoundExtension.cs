@@ -42,6 +42,10 @@ public static class BoundExtension
         height = self.Axes[1].Size;
     }
 
+    public static int GetChildBoundCount(
+        this Bound self) =>
+        Bound.GetChildBoundCount(self.Axes.Length);
+
     public static Bound[] GetChildBounds(
         this Bound self)
     {

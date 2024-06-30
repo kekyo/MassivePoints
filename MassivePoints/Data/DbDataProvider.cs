@@ -95,19 +95,19 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             "@id");
         this.updatePointsQuery = new(
             $"UPDATE {this.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@y0", "@x1", "@y1", "@to_node_id");
+            "@node_id", "@x0", "@x1", "@y0", "@y1", "@to_node_id");
         this.selectPointQuery = new(
             $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.selectPointsQuery = new(
             $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@y0", "@x1", "@y1");
+            "@node_id", "@x0", "@x1", "@y0", "@y1");
         this.deletePointQuery = new(
             $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.deleteBoundQuery = new(
             $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@y0", "@x1", "@y1");
+            "@node_id", "@x0", "@x1", "@y0", "@y1");
     }
     
     public string Prefix =>
@@ -194,7 +194,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         /// Root node ID.
         /// </summary>
         public long RootId => 0;
-
+        
         /// <summary>
         /// Get information about the node.
         /// </summary>
@@ -207,15 +207,20 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectNodeQuery, ct);
             return await command.ExecuteReadOneRecordAsync(
-                record => record.IsDBNull(0) ?
-                    null :
-                    new QuadTreeNode<long>(
-                        record.GetInt64(0),
-                        record.GetInt64(1),
-                        record.GetInt64(2),
-                        record.GetInt64(3)),
-                ct,
-                nodeId);
+                record =>
+                {
+                    if (record.IsDBNull(0))
+                    {
+                        return null;
+                    }
+                    var chibiIds = new long[this.parent.entire.GetChildBoundCount()];
+                    for (var index = 0; index < chibiIds.Length; index++)
+                    {
+                        chibiIds[index] = record.GetInt64(index);
+                    }
+                    return new QuadTreeNode<long>(chibiIds);
+                },
+                ct, nodeId);
         }
 
         public async ValueTask<int> GetPointCountAsync(
@@ -245,23 +250,28 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 this.parent.selectPointCountQuery, ct);
             var pointCount = await selectCommand.ExecuteReadOneRecordAsync(
                 record => record.GetInt32(0),
-                ct,
-                nodeId);
+                ct, nodeId);
 
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.insertPointQuery, ct);
 
             var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
 
+            var args = new object[1 + this.parent.entire.Axes.Length + 1];
+            args[0] = nodeId;
             for (var index = 0; index < insertCount; index++)
             {
                 var pointItem = points[index + offset];
+
+                var elements = pointItem.Point.Elements;
+                for (var index2 = 0; index2 < elements.Length; index2++)
+                {
+                    args[1 + index2] = elements[index2];
+                }
+                args[args.Length - 1] = (object?)pointItem.Value ?? DBNull.Value;
+                
                 if (await insertCommand.ExecuteNonQueryAsync(
-                    ct,
-                    nodeId,
-                    pointItem.Point.X,
-                    pointItem.Point.Y,
-                    (object?)pointItem.Value ?? DBNull.Value) != 1)
+                    ct, args) != 1)
                 {
                     throw new InvalidDataException(
                         $"AddPoint: NodeId={nodeId}, Point={pointItem.Point}");
@@ -276,14 +286,19 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.updatePointsQuery, ct);
+
+            var args = new object[1 + bound.Axes.Length * 2 + 1];
+            args[0] = nodeId;
+            for (var index = 0; index < bound.Axes.Length; index++)
+            {
+                var axis = bound.Axes[index];
+                args[1 + index * 2] = axis.Origin;
+                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+            }
+            args[args.Length - 1] = toNodeId;
+
             if (await command.ExecuteNonQueryAsync(
-                ct,
-                nodeId,
-                bound.X,
-                bound.Y,
-                bound.X + bound.Width,
-                bound.Y + bound.Height,
-                toNodeId) < 0)
+                ct, args) < 0)
             {
                 throw new InvalidDataException(
                     $"MovePoints: NodeId={nodeId}, TargetBound={bound}, ToNodeId={toNodeId}");
@@ -298,8 +313,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             if (await selectCommand.ExecuteReadOneRecordAsync(
                 recored =>
                 {
-                    var baseNodeId = recored.GetInt64(0);
-                    return new QuadTreeNode<long>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
+                    var baseNodeId = recored.GetInt64(0) + 1;
+                    var childIds = new long[this.parent.entire.GetChildBoundCount()];
+                    for (var index = 0; index < childIds.Length; index++)
+                    {
+                        childIds[index] = baseNodeId + index;
+                    }
+                    return new QuadTreeNode<long>(childIds);
                 },
                 ct) is not { } node)
             {
@@ -309,13 +329,17 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.updateNodeQuery, ct);
+
+            var childIds = node.ChildIds;
+            var args = new object[1 + childIds.Length];
+            args[0] = nodeId;
+            for (var index = 0; index < childIds.Length; index++)
+            {
+                args[1 + index] = childIds[index];
+            }
+            
             if (await updateCommand.ExecuteNonQueryAsync(
-                ct,
-                nodeId,
-                node.TopLeftId,
-                node.TopRightId,
-                node.BottomLeftId,
-                node.BottomRightId) < 0)
+                ct, args) < 0)
             {
                 throw new InvalidDataException(
                     $"DistributePoints [2]: NodeId={nodeId}");
@@ -324,15 +348,18 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.insertNodeQuery, ct);
             var toNodeIds = node.ChildIds;
+            
+            for (var index = 1; index < args.Length; index++)
+            {
+                args[index] = DBNull.Value;
+            }
+
             for (var index = 0; index < toBounds.Length; index++)
             {
+                args[0] = toNodeIds[index];
+                
                 if (await insertCommand.ExecuteNonQueryAsync(
-                    ct,
-                    toNodeIds[index],
-                    DBNull.Value,
-                    DBNull.Value,
-                    DBNull.Value,
-                    DBNull.Value) < 0)
+                    ct, args) < 0)
                 {
                     throw new InvalidDataException(
                         $"DistributePoints [3]: NodeId={toNodeIds[index]}");
@@ -353,8 +380,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                     this.parent.deleteNodeQuery, ct);
                 if (await deleteCommand.ExecuteNonQueryAsync(
-                    ct,
-                    nodeId) < 0)
+                    ct, nodeId) < 0)
                 {
                     throw new InvalidDataException(
                         $"AggregatePoints [1]: NodeId={nodeId}");
@@ -363,13 +389,16 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.updateNodeQuery, ct);
+            
+            var args = new object[1 + this.parent.entire.Axes.Length * 2];
+            args[0] = toNodeId;
+            for (var index = 1; index < args.Length; index++)
+            {
+                args[index] = DBNull.Value;
+            }
+
             if (await updateCommand.ExecuteNonQueryAsync(
-                ct,
-                toNodeId,
-                DBNull.Value,
-                DBNull.Value,
-                DBNull.Value,
-                DBNull.Value) < 0)
+                ct, args) < 0)
             {
                 throw new InvalidDataException(
                     $"AggregatePoints [2]: NodeId={toNodeId}");
@@ -381,13 +410,28 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointQuery, ct);
+            
+            var args = new object[1 + targetPoint.Elements.Length];
+            args[0] = nodeId;
+            for (var index = 0; index < targetPoint.Elements.Length; index++)
+            {
+                args[1 + index] = targetPoint.Elements[index];
+            }
+
             var results = new List<PointItem<TValue>>();
             await command.ExecuteReadRecordsAsync(
-                record => results.Add(new(new(record.GetDouble(0), record.GetDouble(1)), (TValue)record.GetValue(2))),
-                ct,
-                nodeId,
-                targetPoint.X,
-                targetPoint.Y);
+                record =>
+                {
+                    var rps = new double[targetPoint.Elements.Length];
+                    for (var index = 0; index < rps.Length; index++)
+                    {
+                        rps[index] = record.GetDouble(index);
+                    }
+                    results.Add(new PointItem<TValue>(
+                        new Point(rps),
+                        (TValue)record.GetValue(rps.Length)));
+                },
+                ct, args);
             return results.ToArray();
         }
 
@@ -396,16 +440,30 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
+            
+            var args = new object[1 + targetBound.Axes.Length * 2];
+            args[0] = nodeId;
+            for (var index = 0; index < targetBound.Axes.Length; index++)
+            {
+                var axis = targetBound.Axes[index];
+                args[1 + index * 2] = axis.Origin;
+                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+            }
+
             var results = new List<PointItem<TValue>>();
             await command.ExecuteReadRecordsAsync(
-                record => results.Add(
-                    new(record.GetDouble(0), record.GetDouble(1), (TValue)record.GetValue(2))),
-                ct,
-                nodeId,
-                targetBound.X,
-                targetBound.Y,
-                targetBound.X + targetBound.Width,
-                targetBound.Y + targetBound.Height);
+                record =>
+                {
+                    var rps = new double[targetBound.Axes.Length];
+                    for (var index = 0; index < rps.Length; index++)
+                    {
+                        rps[index] = record.GetDouble(index);
+                    }
+                    results.Add(new PointItem<TValue>(
+                        new Point(rps),
+                        (TValue)record.GetValue(rps.Length)));
+                },
+                ct, args);
             return results.ToArray();
         }
 
@@ -414,15 +472,29 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
+            
+            var args = new object[1 + targetBound.Axes.Length * 2];
+            args[0] = nodeId;
+            for (var index = 0; index < targetBound.Axes.Length; index++)
+            {
+                var axis = targetBound.Axes[index];
+                args[1 + index * 2] = axis.Origin;
+                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+            }
+
             await foreach (var result in command.ExecuteEnumerateAsync(
-               record => new PointItem<TValue>(
-                   record.GetDouble(0), record.GetDouble(1), (TValue)record.GetValue(2)),
-               ct,
-               nodeId,
-               targetBound.X,
-               targetBound.Y,
-               targetBound.X + targetBound.Width,
-               targetBound.Y + targetBound.Height))
+               record =>
+               {
+                   var rps = new double[targetBound.Axes.Length];
+                   for (var index = 0; index < rps.Length; index++)
+                   {
+                       rps[index] = record.GetDouble(index);
+                   }
+                   return new PointItem<TValue>(
+                       new Point(rps),
+                       (TValue)record.GetValue(rps.Length));
+               },
+               ct, args))
             {
                 yield return result;
             }
@@ -433,11 +505,16 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.deletePointQuery, ct);
+            
+            var args = new object[1 + point.Elements.Length];
+            args[0] = nodeId;
+            for (var index = 0; index < point.Elements.Length; index++)
+            {
+                args[1 + index] = point.Elements[index];
+            }
+
             var removed = await deleteCommand.ExecuteNonQueryAsync(
-                ct,
-                nodeId,
-                point.X,
-                point.Y);
+                ct, args);
             if (removed < 0)
             {
                 throw new InvalidDataException(
@@ -450,8 +527,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     this.parent.selectPointCountQuery, ct);
                 if (await selectCommand.ExecuteReadOneRecordAsync(
                     record => (int?)record.GetInt32(0),
-                    ct,
-                    nodeId) is not { } remains)
+                    ct, nodeId) is not { } remains)
                 {
                     throw new InvalidDataException($"RemovePoints: NodeId={nodeId}");
                 }
@@ -468,13 +544,18 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.deleteBoundQuery, ct);
+            
+            var args = new object[1 + bound.Axes.Length * 2];
+            args[0] = nodeId;
+            for (var index = 0; index < bound.Axes.Length; index++)
+            {
+                var axis = bound.Axes[index];
+                args[1 + index * 2] = axis.Origin;
+                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+            }
+
             var removed = await deleteCommand.ExecuteNonQueryAsync(
-                ct,
-                nodeId,
-                bound.X,
-                bound.Y,
-                bound.X + bound.Width,
-                bound.Y + bound.Height);
+                ct, args);
             if (removed < 0)
             {
                 throw new InvalidDataException(
@@ -487,8 +568,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     this.parent.selectPointCountQuery, ct);
                 if (await selectCommand.ExecuteReadOneRecordAsync(
                     record => (int?)record.GetInt32(0),
-                    ct,
-                    nodeId) is not { } remains)
+                    ct, nodeId) is not { } remains)
                 {
                     throw new InvalidDataException($"RemovePoints: NodeId={nodeId}");
                 }
