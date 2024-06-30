@@ -110,9 +110,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
 
         public ValueTask<QuadTreeNode<int>?> GetNodeAsync(
             int nodeId, CancellationToken ct) =>
-            new((this.parent.nodes.TryGetValue(nodeId, out var node) && node.TopLeftId != -1) ?
-                new QuadTreeNode<int>(node.TopLeftId, node.TopRightId, node.BottomLeftId, node.BottomRightId) :
-                null);
+            new(this.parent.nodes.TryGetValue(nodeId, out var node) ? node : null);
 
         public ValueTask<int> GetPointCountAsync(
             int nodeId, CancellationToken ct) =>
