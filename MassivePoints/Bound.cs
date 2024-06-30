@@ -15,17 +15,25 @@ namespace MassivePoints;
 
 public readonly struct Axis
 {
-    public readonly double Element;
+    public readonly double Origin;
     public readonly double Size;
 
-    public Axis(double element, double size)
+    public Axis(double origin, double size)
     {
-        this.Element = element;
+        this.Origin = origin;
         this.Size = size;
     }
 
     public override string ToString() =>
-        $"Axis: {this.Element} ({this.Size})";
+        $"Axis: {this.Origin} ({this.Size})";
+
+    public void Deconstruct(
+        double origin,
+        double size)
+    {
+        origin = this.Origin;
+        size = this.Size;
+    }
 }
 
 /// <summary>
@@ -47,7 +55,7 @@ public struct Bound
     private static readonly object locker = new();
     private static int[] sizes = [1, 2, 4, 8, 16];
 
-    public static int GetChildrenCount(int dimension)
+    public static int GetChildBoundCount(int dimension)
     {
         if (dimension >= sizes.Length)
         {
@@ -69,44 +77,45 @@ public struct Bound
         return sizes[dimension];
     }
 
-    private readonly Axis[] axes;
     private Bound[]? childBounds;
+
+    public readonly Axis[] Axes;
 
     /// <summary>
     /// X
     /// </summary>
     public double X =>
-        this.axes[0].Element;
+        this.Axes[0].Origin;
     
     /// <summary>
     /// Y
     /// </summary>
     public double Y =>
-        this.axes[1].Element;
+        this.Axes[1].Origin;
 
     /// <summary>
     /// Range width
     /// </summary>
     public double Width =>
-        this.axes[0].Size;
+        this.Axes[0].Size;
 
     /// <summary>
     /// Range height
     /// </summary>
     public double Height =>
-        this.axes[1].Size;
+        this.Axes[1].Size;
 
     public Bound(double width, double height) =>
-        this.axes = [new(0, width), new(0, height)];
+        this.Axes = [new(0, width), new(0, height)];
 
     public Bound(Point point, double width, double height) =>
-        this.axes = [new(point.X, width), new(point.Y, height)];
+        this.Axes = [new(point.X, width), new(point.Y, height)];
 
     public Bound(double x, double y, double width, double height) =>
-        this.axes = [new(x, width), new(y, height)];
+        this.Axes = [new(x, width), new(y, height)];
 
     public Bound(Axis[] axes) =>
-        this.axes = axes;
+        this.Axes = axes;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public Bound[] ChildBounds
@@ -115,24 +124,24 @@ public struct Bound
         {
             if (this.childBounds == null)
             {
-                var childBounds = new Bound[GetChildrenCount(this.axes.Length)];
+                var childBounds = new Bound[GetChildBoundCount(this.Axes.Length)];
                 for (var childIndex = 0; childIndex < childBounds.Length; childIndex++)
                 {
-                    var axes = new Axis[this.axes.Length];
+                    var axes = new Axis[this.Axes.Length];
                     var halfBits = childIndex;
                     for (var axisIndex = 0; axisIndex < axes.Length; axisIndex++, halfBits >>= 1)
                     {
-                        var halfSize = this.axes[axisIndex].Size / 2;
+                        var halfSize = this.Axes[axisIndex].Size / 2;
                         if ((halfBits & 0x01) == 0x01)
                         {
                             axes[axisIndex] = new Axis(
-                                this.axes[axisIndex].Element + halfSize,
+                                this.Axes[axisIndex].Origin + halfSize,
                                 halfSize);
                         }
                         else
                         {
                             axes[axisIndex] = new Axis(
-                                this.axes[axisIndex].Element,
+                                this.Axes[axisIndex].Origin,
                                 halfSize);
                         }
                     }
@@ -145,7 +154,7 @@ public struct Bound
     }
 
     public override string ToString() =>
-        $"Bound: [{string.Join(",", this.axes.Select(axis => axis.Element))} - {string.Join(",", this.axes.Select(axis => axis.Element + axis.Size))}), Size={string.Join(",", this.axes.Select(axis => axis.Size))}";
+        $"Bound: [{string.Join(",", this.Axes.Select(axis => axis.Origin))} - {string.Join(",", this.Axes.Select(axis => axis.Origin + axis.Size))}), Size={string.Join(",", this.Axes.Select(axis => axis.Size))}";
 
     public static implicit operator Bound((double width, double height) size) =>
         new(size.width, size.height);
@@ -170,6 +179,11 @@ public static class BoundExtension
 {
     public static void Deconstruct(
         this Bound self,
+        out Axis[] axes) =>
+        axes = self.Axes;
+
+    public static void Deconstruct(
+        this Bound self,
         out double x,
         out double y,
         out double width,
@@ -188,9 +202,26 @@ public static class BoundExtension
     /// <param name="point">A coordinate point</param>
     /// <returns>True when within.</returns>
     public static bool IsWithin(
-        this Bound self, Point point) =>
-        self.X <= point.X && point.X < (self.X + self.Width) &&
-        self.Y <= point.Y && point.Y < (self.Y + self.Height);
+        this Bound self, Point point)
+    {
+        if (self.Axes.Length != point.Elements.Length)
+        {
+            throw new ArgumentException(
+                $"Could not compare difference dimension: {self.Axes.Length} != {point.Elements.Length}");
+        }
+
+        for (var index = 0; index < self.Axes.Length; index++)
+        {
+            var b = self.Axes[index];
+            var e = point.Elements[index];
+            if (!(b.Origin <= e && e < (b.Origin + b.Size)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Checks whether the specified coordinate point is within this range.
@@ -201,8 +232,7 @@ public static class BoundExtension
     /// <returns>True is within.</returns>
     public static bool IsWithin(
         this Bound self, double x, double y) =>
-        self.X <= x && x < (self.X + self.Width) &&
-        self.Y <= y && y < (self.Y + self.Height);
+        IsWithin(self, new Point(x, y));
 
     /// <summary>
     /// Checks whether the specified range is intersects this range.
