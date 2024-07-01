@@ -55,14 +55,18 @@ public readonly struct Axis : IEquatable<Axis>
     public override string ToString() =>
         $"Axis: {this.Origin} ({this.Size})";
 
-    public void Deconstruct(
+    public static implicit operator Axis((double origin, double size) axis) =>
+        new Axis(axis.origin, axis.size);
+}
+
+public static class AxisExtension
+{
+    public static void Deconstruct(
+        this Axis self,
         double origin,
         double size)
     {
-        origin = this.Origin;
-        size = this.Size;
+        origin = self.Origin;
+        size = self.Size;
     }
-
-    public static implicit operator Axis((double origin, double size) axis) =>
-        new Axis(axis.origin, axis.size);
 }

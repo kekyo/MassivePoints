@@ -141,7 +141,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             int nodeId, Bound[] toBounds, CancellationToken ct)
         {
             var baseNodeId = this.parent.maxNodeId + 1;
-            this.parent.maxNodeId += 4;
+            this.parent.maxNodeId += toBounds.Length;
 
             var childIds = new int[toBounds.Length];
             for (var index = 0; index < childIds.Length; index++)
