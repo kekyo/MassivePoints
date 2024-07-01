@@ -117,7 +117,7 @@ public static class DbDataProviderExtension
 
         var nodeColumnNames = string.Join(
             ",",
-            Enumerable.Range(0, childBoundCount).Select(index => $"child_id{index} INTEGER"));
+            Enumerable.Range(0, childBoundCount).Select(index => $"{provider.Configuration.NodeColumnName(index)} INTEGER"));
         using (var command = connection.CreateCommand())
         {
             command.CommandType = CommandType.Text;
@@ -161,13 +161,16 @@ public static class DbDataProviderExtension
                 $"SELECT COUNT(*) FROM {provider.Configuration.Prefix}_nodes";
             if (await command.ExecuteScalarAsync(ct) is long count && count == 0)
             {
+                var nodeColumnNames2 = string.Join(
+                    ",",
+                    Enumerable.Range(0, childBoundCount).Select(index => provider.Configuration.NodeColumnName(index)));
                 var nodeNullColumns = string.Join(
                     ",",
                     Enumerable.Range(0, childBoundCount).Select(_ => "NULL"));
                 
                 command.CommandType = CommandType.Text;
                 command.CommandText =
-                    $"INSERT INTO {provider.Configuration.Prefix}_nodes (id,{nodeColumnNames}) VALUES (0,{nodeNullColumns})";
+                    $"INSERT INTO {provider.Configuration.Prefix}_nodes (id,{nodeColumnNames2}) VALUES (0,{nodeNullColumns})";
                 if (await command.ExecuteNonQueryAsync(ct) != 1)
                 {
                     throw new InvalidOperationException();

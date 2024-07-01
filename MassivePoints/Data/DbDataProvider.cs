@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Common;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,13 +29,80 @@ public sealed class DbDataProviderConfiguration
     public readonly Bound Entire;
 
     public readonly int MaxNodePoints;
-    
+
     /// <summary>
     /// Database metadata prefix name.
     /// </summary>
     public readonly string Prefix;
 
     public readonly Func<int, string> NodePointColumnName;
+    public readonly Func<int, string> NodeColumnName;
+
+    public readonly DbQueryDefinition selectNodeQuery;
+    public readonly DbQueryDefinition selectPointCountQuery;
+    public readonly DbQueryDefinition insertPointQuery;
+    public readonly DbQueryDefinition selectNodeMaxIdQuery;
+    public readonly DbQueryDefinition updateNodeQuery;
+    public readonly DbQueryDefinition insertNodeQuery;
+    public readonly DbQueryDefinition deleteNodeQuery;
+    public readonly DbQueryDefinition updatePointsQuery;
+    public readonly DbQueryDefinition selectPointQuery;
+    public readonly DbQueryDefinition selectPointsQuery;
+    public readonly DbQueryDefinition deletePointQuery;
+    public readonly DbQueryDefinition deleteBoundQuery;
+
+    public DbDataProviderConfiguration(
+        Bound entire,
+        int maxNodePoints = 1024,
+        string prefix = "quadtree",
+        Func<int, string>? nodePointColumnName = null,
+        Func<int, string>? nodeColumnName = null)
+    {
+        this.Entire = entire;
+        this.MaxNodePoints = maxNodePoints;
+        this.Prefix = prefix;
+        this.NodePointColumnName = nodePointColumnName ?? GetNodePointColumnName;
+        this.NodeColumnName = nodeColumnName ?? GetNodeColumnName;
+
+        var childBoundCount = this.Entire.GetChildBoundCount();
+        var dimensionAxisCount = this.Entire.GetDimensionAxisCount();
+
+        this.selectNodeQuery = new(
+            $"SELECT {string.Join(",", Enumerable.Range(0, childBoundCount).Select(this.NodeColumnName))} FROM {this.Prefix}_nodes WHERE id=@id",
+            "@id");
+        this.selectPointCountQuery = new(
+            $"SELECT COUNT(*) FROM {this.Prefix}_node_points WHERE node_id=@node_id",
+            "@node_id");
+        this.insertPointQuery = new(
+            $"INSERT INTO {this.Prefix}_node_points (node_id,{string.Join(",", Enumerable.Range(0, dimensionAxisCount).Select(this.NodePointColumnName))},[value]) VALUES (@node_id,{string.Join(",", Enumerable.Range(0, dimensionAxisCount).Select(index => $"@{this.NodePointColumnName(index)}"))},@value)",
+            "@node_id", "@x", "@y", "@value");   // TODO:
+        this.selectNodeMaxIdQuery = new(
+            $"SELECT MAX(id) FROM {this.Prefix}_nodes");
+        this.updateNodeQuery = new(
+            $"UPDATE {this.Prefix}_nodes SET {string.Join(",", Enumerable.Range(0, childBoundCount).Select(index => $"{this.NodeColumnName(index)}=@{this.NodeColumnName(index)}"))} WHERE id=@id",
+            "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");   // TODO:
+        this.insertNodeQuery = new(
+            $"INSERT INTO {this.Prefix}_nodes (id,{string.Join(",", Enumerable.Range(0, childBoundCount).Select(this.NodeColumnName))}) VALUES (@id,{string.Join(",", Enumerable.Range(0, childBoundCount).Select(index => $"@{this.NodeColumnName(index)}"))})",
+            "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");   // TODO:
+        this.deleteNodeQuery = new(
+            $"DELETE FROM {this.Prefix}_nodes WHERE id=@id",
+            "@id");
+        this.updatePointsQuery = new(
+            $"UPDATE {this.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            "@node_id", "@x0", "@x1", "@y0", "@y1", "@to_node_id");   // TODO:
+        this.selectPointQuery = new(
+            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            "@node_id", "@x", "@y");   // TODO:
+        this.selectPointsQuery = new(
+            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            "@node_id", "@x0", "@x1", "@y0", "@y1");   // TODO:
+        this.deletePointQuery = new(
+            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            "@node_id", "@x", "@y");   // TODO:
+        this.deleteBoundQuery = new(
+            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            "@node_id", "@x0", "@x1", "@y0", "@y1");   // TODO:
+    }
     
     private static string GetNodePointColumnName(int index) =>
         index switch
@@ -44,18 +112,9 @@ public sealed class DbDataProviderConfiguration
             2 => "z",
             _ => $"axis{index}",
         };
-
-    public DbDataProviderConfiguration(
-        Bound entire,
-        int maxNodePoints = 1024,
-        string prefix = "quadtree",
-        Func<int, string> nodePointColumnName = null!)
-    {
-        this.Entire = entire;
-        this.MaxNodePoints = maxNodePoints;
-        this.Prefix = prefix;
-        this.NodePointColumnName = nodePointColumnName ?? GetNodePointColumnName;
-    }
+    
+    private static string GetNodeColumnName(int index) =>
+        $"child_id{index}";
 }
 
 /// <summary>
@@ -66,19 +125,6 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly Func<DbConnection> connectionFactory;
     private readonly DbDataProviderConfiguration configuration;
-
-    private readonly DbQueryDefinition selectNodeQuery;
-    private readonly DbQueryDefinition selectPointCountQuery;
-    private readonly DbQueryDefinition insertPointQuery;
-    private readonly DbQueryDefinition selectNodeMaxIdQuery;
-    private readonly DbQueryDefinition updateNodeQuery;
-    private readonly DbQueryDefinition insertNodeQuery;
-    private readonly DbQueryDefinition deleteNodeQuery;
-    private readonly DbQueryDefinition updatePointsQuery;
-    private readonly DbQueryDefinition selectPointQuery;
-    private readonly DbQueryDefinition selectPointsQuery;
-    private readonly DbQueryDefinition deletePointQuery;
-    private readonly DbQueryDefinition deleteBoundQuery;
 
     /// <summary>
     /// Constructor.
@@ -91,42 +137,6 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
     {
         this.connectionFactory = connectionFactory;
         this.configuration = configuration;
-
-        this.selectNodeQuery = new(
-            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {this.configuration.Prefix}_nodes WHERE id=@id",
-            "@id");
-        this.selectPointCountQuery = new(
-            $"SELECT COUNT(*) FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id",
-            "@node_id");
-        this.insertPointQuery = new(
-            $"INSERT INTO {this.configuration.Prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
-            "@node_id", "@x", "@y", "@value");
-        this.selectNodeMaxIdQuery = new(
-            $"SELECT MAX(id) FROM {this.configuration.Prefix}_nodes");
-        this.updateNodeQuery = new(
-            $"UPDATE {this.configuration.Prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
-            "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
-        this.insertNodeQuery = new(
-            $"INSERT INTO {this.configuration.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
-            "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
-        this.deleteNodeQuery = new(
-            $"DELETE FROM {this.configuration.Prefix}_nodes WHERE id=@id",
-            "@id");
-        this.updatePointsQuery = new(
-            $"UPDATE {this.configuration.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@x1", "@y0", "@y1", "@to_node_id");
-        this.selectPointQuery = new(
-            $"SELECT x,y,[value] FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
-            "@node_id", "@x", "@y");
-        this.selectPointsQuery = new(
-            $"SELECT x,y,[value] FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@x1", "@y0", "@y1");
-        this.deletePointQuery = new(
-            $"DELETE FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
-            "@node_id", "@x", "@y");
-        this.deleteBoundQuery = new(
-            $"DELETE FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
-            "@node_id", "@x0", "@x1", "@y0", "@y1");
     }
 
     public DbDataProviderConfiguration Configuration =>
@@ -224,7 +234,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectNodeQuery, ct);
+                this.parent.configuration.selectNodeQuery, ct);
             return await command.ExecuteReadOneRecordAsync(
                 record =>
                 {
@@ -246,7 +256,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectPointCountQuery, ct);
+                this.parent.configuration.selectPointCountQuery, ct);
             return await command.ExecuteReadOneRecordAsync(
                 record => record.GetInt32(0),
                 ct,
@@ -266,13 +276,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
         {
             using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectPointCountQuery, ct);
+                this.parent.configuration.selectPointCountQuery, ct);
             var pointCount = await selectCommand.ExecuteReadOneRecordAsync(
                 record => record.GetInt32(0),
                 ct, nodeId);
 
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.insertPointQuery, ct);
+                this.parent.configuration.insertPointQuery, ct);
 
             var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
 
@@ -304,7 +314,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Bound bound, long toNodeId, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.updatePointsQuery, ct);
+                this.parent.configuration.updatePointsQuery, ct);
 
             var args = new object[1 + bound.Axes.Length * 2 + 1];
             args[0] = nodeId;
@@ -328,7 +338,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Bound[] toBounds, CancellationToken ct)
         {
             using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectNodeMaxIdQuery, ct);
+                this.parent.configuration.selectNodeMaxIdQuery, ct);
             if (await selectCommand.ExecuteReadOneRecordAsync(
                 recored =>
                 {
@@ -347,7 +357,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
             
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.updateNodeQuery, ct);
+                this.parent.configuration.updateNodeQuery, ct);
 
             var childIds = node.ChildIds;
             var args = new object[1 + childIds.Length];
@@ -365,7 +375,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
 
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.insertNodeQuery, ct);
+                this.parent.configuration.insertNodeQuery, ct);
             var toNodeIds = node.ChildIds;
             
             for (var index = 1; index < args.Length; index++)
@@ -397,7 +407,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 await this.MovePointsAsync(nodeId, toBound, toNodeId, ct);
 
                 using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
-                    this.parent.deleteNodeQuery, ct);
+                    this.parent.configuration.deleteNodeQuery, ct);
                 if (await deleteCommand.ExecuteNonQueryAsync(
                     ct, nodeId) < 0)
                 {
@@ -407,7 +417,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
 
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.updateNodeQuery, ct);
+                this.parent.configuration.updateNodeQuery, ct);
             
             var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() * 2];
             args[0] = toNodeId;
@@ -428,7 +438,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Point targetPoint, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectPointQuery, ct);
+                this.parent.configuration.selectPointQuery, ct);
             
             var args = new object[1 + targetPoint.Elements.Length];
             args[0] = nodeId;
@@ -458,7 +468,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Bound targetBound, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectPointsQuery, ct);
+                this.parent.configuration.selectPointsQuery, ct);
             
             var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
@@ -490,7 +500,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.selectPointsQuery, ct);
+                this.parent.configuration.selectPointsQuery, ct);
             
             var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
@@ -523,7 +533,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Point point, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.deletePointQuery, ct);
+                this.parent.configuration.deletePointQuery, ct);
             
             var args = new object[1 + point.Elements.Length];
             args[0] = nodeId;
@@ -543,7 +553,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             if (includeRemains)
             {
                 using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
-                    this.parent.selectPointCountQuery, ct);
+                    this.parent.configuration.selectPointCountQuery, ct);
                 if (await selectCommand.ExecuteReadOneRecordAsync(
                     record => (int?)record.GetInt32(0),
                     ct, nodeId) is not { } remains)
@@ -562,7 +572,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             long nodeId, Bound bound, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.deleteBoundQuery, ct);
+                this.parent.configuration.deleteBoundQuery, ct);
             
             var args = new object[1 + bound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
@@ -584,7 +594,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             if (includeRemains)
             {
                 using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
-                    this.parent.selectPointCountQuery, ct);
+                    this.parent.configuration.selectPointCountQuery, ct);
                 if (await selectCommand.ExecuteReadOneRecordAsync(
                     record => (int?)record.GetInt32(0),
                     ct, nodeId) is not { } remains)
