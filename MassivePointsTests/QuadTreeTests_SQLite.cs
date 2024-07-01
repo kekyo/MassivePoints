@@ -56,17 +56,44 @@ public sealed class QuadTreeTests_SQLite
 #endif
     }
 
+    private static Bound GetEntireBound(int dimension) =>
+        new(Enumerable.Range(0, dimension).Select(_ => new Axis(0, 100000)).ToArray());
+    
+    private static Point GetRandomPoint(Random r, int dimension)
+    {
+        var ps = new double[dimension];
+        for (var d = 0; d < dimension; d++)
+        {
+            ps[d] = r.Next(0, 99999);
+        }
+        return new Point(ps);
+    }
+    
+    private static Bound GetRandomBound(Random r, int dimension)
+    {
+        var axes = new Axis[dimension];
+        for (var d = 0; d < dimension; d++)
+        {
+            axes[d] = new Axis(r.Next(0, 49999), r.Next(0, 49999));
+        }
+        return new Bound(axes);
+    }
+
     //////////////////////////////////////////////////////////////////////////////////
 
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(100000, 1024)]
-    public async Task InsertSqlite(long count, int maxNodePoints)
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(100000, 1024, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(100000, 1024, 3)]
+    public async Task InsertSqlite(long count, int maxNodePoints, int dimension)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"insert_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(dimension), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -80,10 +107,9 @@ public sealed class QuadTreeTests_SQLite
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
+                var point = GetRandomPoint(r, dimension);
                 var nodeDepth = await session.InsertPointAsync(
-                    (r.Next(0, 99999), r.Next(0, 99999)),
-                    index,
-                    default);
+                    point, index);
                 maxDepth = Math.Max(maxDepth, nodeDepth);
             }
         }
@@ -101,7 +127,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"bulkinsert1_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
 
@@ -167,7 +193,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"bulkinsert2_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
 
@@ -218,7 +244,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"bulkinsert3_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
 
@@ -245,7 +271,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"lookup_point_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -291,7 +317,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"lookup_bound_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -349,7 +375,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"enumerate_bound_{count}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -413,7 +439,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"remove_points_{count}{(performShrinking ? "_shr" : "")}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         
@@ -460,7 +486,7 @@ public sealed class QuadTreeTests_SQLite
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"remove_bound_{count}{(performShrinking ? "_shr" : "")}"),
-            new() { Prefix = "test" }, (100000, 100000), maxNodePoints);
+            new(GetEntireBound(2), maxNodePoints, prefix: "test"));
 
         await provider.CreateSQLiteTablesAsync(false);
         

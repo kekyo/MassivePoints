@@ -25,10 +25,37 @@ namespace MassivePoints.Data;
 /// </summary>
 public sealed class DbDataProviderConfiguration
 {
+    public readonly Bound Entire;
+
+    public readonly int MaxNodePoints;
+    
     /// <summary>
     /// Database metadata prefix name.
     /// </summary>
-    public string Prefix { get; set; } = "quadtree";
+    public readonly string Prefix;
+
+    public readonly Func<int, string> NodePointColumnName;
+    
+    private static string GetNodePointColumnName(int index) =>
+        index switch
+        {
+            0 => "x",
+            1 => "y",
+            2 => "z",
+            _ => $"axis{index}",
+        };
+
+    public DbDataProviderConfiguration(
+        Bound entire,
+        int maxNodePoints = 1024,
+        string prefix = "quadtree",
+        Func<int, string> nodePointColumnName = null!)
+    {
+        this.Entire = entire;
+        this.MaxNodePoints = maxNodePoints;
+        this.Prefix = prefix;
+        this.NodePointColumnName = nodePointColumnName ?? GetNodePointColumnName;
+    }
 }
 
 /// <summary>
@@ -39,8 +66,6 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
     private readonly Func<DbConnection> connectionFactory;
     private readonly DbDataProviderConfiguration configuration;
-    private readonly Bound entire;
-    private readonly int maxNodePoints;
 
     private readonly DbQueryDefinition selectNodeQuery;
     private readonly DbQueryDefinition selectPointCountQuery;
@@ -60,58 +85,52 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
     /// </summary>
     /// <param name="connectionFactory">`DbConnection` factory</param>
     /// <param name="configuration">Database configuration</param>
-    /// <param name="entire">The overall range of the coordinate points managed</param>
-    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     public DbDataProvider(
         Func<DbConnection> connectionFactory,
-        DbDataProviderConfiguration configuration,
-        Bound entire,
-        int maxNodePoints = 1024)
+        DbDataProviderConfiguration configuration)
     {
         this.connectionFactory = connectionFactory;
         this.configuration = configuration;
-        this.entire = entire;
-        this.maxNodePoints = maxNodePoints;
 
         this.selectNodeQuery = new(
-            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {this.Prefix}_nodes WHERE id=@id",
+            $"SELECT top_left_id,top_right_id,bottom_left_id,bottom_right_id FROM {this.configuration.Prefix}_nodes WHERE id=@id",
             "@id");
         this.selectPointCountQuery = new(
-            $"SELECT COUNT(*) FROM {this.Prefix}_node_points WHERE node_id=@node_id",
+            $"SELECT COUNT(*) FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id",
             "@node_id");
         this.insertPointQuery = new(
-            $"INSERT INTO {this.Prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
+            $"INSERT INTO {this.configuration.Prefix}_node_points (node_id,x,y,[value]) VALUES (@node_id,@x,@y,@value)",
             "@node_id", "@x", "@y", "@value");
         this.selectNodeMaxIdQuery = new(
-            $"SELECT MAX(id) FROM {this.Prefix}_nodes");
+            $"SELECT MAX(id) FROM {this.configuration.Prefix}_nodes");
         this.updateNodeQuery = new(
-            $"UPDATE {this.Prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
+            $"UPDATE {this.configuration.Prefix}_nodes SET top_left_id=@top_left_id,top_right_id=@top_right_id,bottom_left_id=@bottom_left_id,bottom_right_id=@bottom_right_id WHERE id=@id",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.insertNodeQuery = new(
-            $"INSERT INTO {this.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
+            $"INSERT INTO {this.configuration.Prefix}_nodes (id,top_left_id,top_right_id,bottom_left_id,bottom_right_id) VALUES (@id,@top_left_id,@top_right_id,@bottom_left_id,@bottom_right_id)",
             "@id", "@top_left_id", "@top_right_id", "@bottom_left_id", "@bottom_right_id");
         this.deleteNodeQuery = new(
-            $"DELETE FROM {this.Prefix}_nodes WHERE id=@id",
+            $"DELETE FROM {this.configuration.Prefix}_nodes WHERE id=@id",
             "@id");
         this.updatePointsQuery = new(
-            $"UPDATE {this.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"UPDATE {this.configuration.Prefix}_node_points SET node_id=@to_node_id WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@x1", "@y0", "@y1", "@to_node_id");
         this.selectPointQuery = new(
-            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"SELECT x,y,[value] FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.selectPointsQuery = new(
-            $"SELECT x,y,[value] FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"SELECT x,y,[value] FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@x1", "@y0", "@y1");
         this.deletePointQuery = new(
-            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
+            $"DELETE FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND x=@x AND y=@y",
             "@node_id", "@x", "@y");
         this.deleteBoundQuery = new(
-            $"DELETE FROM {this.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
+            $"DELETE FROM {this.configuration.Prefix}_node_points WHERE node_id=@node_id AND @x0<=x AND @y0<=y AND x<@x1 AND y<@y1",
             "@node_id", "@x0", "@x1", "@y0", "@y1");
     }
-    
-    public string Prefix =>
-        this.configuration.Prefix;
+
+    public DbDataProviderConfiguration Configuration =>
+        this.configuration;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public async ValueTask<DbConnection> OpenTemporaryConnectionAsync(
@@ -182,13 +201,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         /// This indicates the overall range of the coordinate points managed by data provider.
         /// </summary>
         public Bound Entire =>
-            this.parent.entire;
+            this.parent.Configuration.Entire;
 
         /// <summary>
         /// Maximum number of coordinate points in each node.
         /// </summary>
         public int MaxNodePoints =>
-            this.parent.maxNodePoints;
+            this.parent.Configuration.MaxNodePoints;
 
         /// <summary>
         /// Root node ID.
@@ -213,7 +232,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     {
                         return null;
                     }
-                    var chibiIds = new long[this.parent.entire.GetChildBoundCount()];
+                    var chibiIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
                     for (var index = 0; index < chibiIds.Length; index++)
                     {
                         chibiIds[index] = record.GetInt64(index);
@@ -257,7 +276,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 
             var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
 
-            var args = new object[1 + this.parent.entire.Axes.Length + 1];
+            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() + 1];
             args[0] = nodeId;
             for (var index = 0; index < insertCount; index++)
             {
@@ -314,7 +333,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 recored =>
                 {
                     var baseNodeId = recored.GetInt64(0) + 1;
-                    var childIds = new long[this.parent.entire.GetChildBoundCount()];
+                    var childIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
                     for (var index = 0; index < childIds.Length; index++)
                     {
                         childIds[index] = baseNodeId + index;
@@ -390,7 +409,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.updateNodeQuery, ct);
             
-            var args = new object[1 + this.parent.entire.Axes.Length * 2];
+            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() * 2];
             args[0] = toNodeId;
             for (var index = 1; index < args.Length; index++)
             {
@@ -441,7 +460,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.Axes.Length * 2];
+            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
             for (var index = 0; index < targetBound.Axes.Length; index++)
             {
@@ -454,7 +473,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             await command.ExecuteReadRecordsAsync(
                 record =>
                 {
-                    var rps = new double[targetBound.Axes.Length];
+                    var rps = new double[targetBound.GetDimensionAxisCount()];
                     for (var index = 0; index < rps.Length; index++)
                     {
                         rps[index] = record.GetDouble(index);
@@ -473,9 +492,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.Axes.Length * 2];
+            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
-            for (var index = 0; index < targetBound.Axes.Length; index++)
+            for (var index = 0; index < targetBound.GetDimensionAxisCount(); index++)
             {
                 var axis = targetBound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
@@ -545,9 +564,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.deleteBoundQuery, ct);
             
-            var args = new object[1 + bound.Axes.Length * 2];
+            var args = new object[1 + bound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
-            for (var index = 0; index < bound.Axes.Length; index++)
+            for (var index = 0; index < bound.GetDimensionAxisCount(); index++)
             {
                 var axis = bound.Axes[index];
                 args[1 + index * 2] = axis.Origin;

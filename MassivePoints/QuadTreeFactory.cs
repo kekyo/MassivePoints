@@ -50,16 +50,12 @@ public static class QuadTreeFactoryExtension
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="connectionFactory">Database connection factory</param>
     /// <param name="configuration">Database configuration</param>
-    /// <param name="entire">Entire coordinate range</param>
-    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
     public static DbDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
         Func<DbConnection> connectionFactory,
-        DbDataProviderConfiguration configuration,
-        Bound entire,
-        int maxNodePoints = 1024) =>
-        new(connectionFactory, configuration, entire, maxNodePoints);
+        DbDataProviderConfiguration configuration) =>
+        new(connectionFactory, configuration);
 
     /// <summary>
     /// Create QuadTree with in-memory data provider.

@@ -65,9 +65,17 @@ public static class BoundExtension
     }
 
     /// <summary>
+    /// Get dimension axis count.
+    /// </summary>
+    /// <returns>Dimension axis count</returns>
+    public static int GetDimensionAxisCount(
+        this Bound self) =>
+        self.Axes.Length;
+
+    /// <summary>
     /// Get child bound count.
     /// </summary>
-    /// <returns>Child bound count.</returns>
+    /// <returns>Child bound count</returns>
     public static int GetChildBoundCount(
         this Bound self) =>
         Bound.GetChildBoundCount(self.Axes.Length);
