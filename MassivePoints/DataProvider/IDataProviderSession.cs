@@ -13,11 +13,21 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MassivePoints;
+namespace MassivePoints.DataProvider;
 
+/// <summary>
+/// Remove manipulation result.
+/// </summary>
 public readonly struct RemoveResults
 {
+    /// <summary>
+    /// Number of removed coordinate points.
+    /// </summary>
     public readonly long Removed;
+    
+    /// <summary>
+    /// Remains coordinate points when available.
+    /// </summary>
     public readonly int RemainsHint;
 
     public RemoveResults(long removed, int remainsHint)

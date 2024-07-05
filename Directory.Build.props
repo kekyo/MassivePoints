@@ -54,7 +54,7 @@
   <ItemGroup>
     <PackageReference Include="RelaxVersioner" Version="3.4.0" PrivateAssets="All" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
-    <!--<PackageReference Include="PolySharp" Version="1.14.1" PrivateAssets="All" />-->
+    <PackageReference Include="PolySharp" Version="1.14.1" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)' == 'Release'">

@@ -21,15 +21,45 @@ namespace MassivePoints;
 [Parallelizable(ParallelScope.All)]
 public sealed class QuadTreeTests_InMemory
 {
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
-    public async Task InsertCollection(long count, int maxNodePoints)
+    private static Bound GetEntireBound(int dimension) =>
+        new(Enumerable.Range(0, dimension).Select(_ => new Axis(0, 100000)).ToArray());
+    
+    private static Point GetRandomPoint(Random r, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var ps = new double[dimension];
+        for (var d = 0; d < dimension; d++)
+        {
+            ps[d] = r.Next(0, 99999);
+        }
+        return new Point(ps);
+    }
+    
+    private static Bound GetRandomBound(Random r, int dimension)
+    {
+        var axes = new Axis[dimension];
+        for (var d = 0; d < dimension; d++)
+        {
+            axes[d] = new Axis(r.Next(0, 49999), r.Next(0, 49999));
+        }
+        return new Bound(axes);
+    }
+    
+    //////////////////////////////////////////////////////////////////////////////////
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(1000000, 1024, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(1000000, 256, 3)]
+    public async Task InsertCollection(long count, int maxNodePoints, int dimension)
+    {
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
+
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -37,11 +67,11 @@ public sealed class QuadTreeTests_InMemory
             var maxDepth = 0;
             for (var index = 0L; index < count; index++)
             {
-                var depth = await session.InsertPointAsync(
-                    (r.Next(0, 99999), r.Next(0, 99999)),
-                    index,
-                    default);
-                maxDepth = Math.Max(maxDepth, depth);
+                var point = GetRandomPoint(r, dimension);
+                
+                var nodeDepth = await session.InsertPointAsync(
+                    point, index);
+                maxDepth = Math.Max(maxDepth, nodeDepth);
             }
         }
         finally
@@ -58,17 +88,22 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(10000000, 1024)]
-    public async Task BulkInsertCollection1(long count, int maxNodePoints)
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(1000000, 1024, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(1000000, 256, 3)]
+    public async Task BulkInsertCollection1(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
         var allPoints = new Point[count];
 
-        await using (var session = await quadTree.BeginSessionAsync(true))
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
             try
             {
@@ -78,9 +113,9 @@ public sealed class QuadTreeTests_InMemory
                     var points = Enumerable.Range(0, (int)Math.Min(100000, count - index)).
                         Select(i =>
                         {
-                            var p = new Point(r.Next(0, 99999), r.Next(0, 99999));
-                            allPoints[index + i] = p;
-                            return new PointItem<long>(p, index + i);
+                            var point = GetRandomPoint(r, dimension);
+                            allPoints[index + i] = point;
+                            return new PointItem<long>(point, index + i);
                         }).
                         ToArray();
 
@@ -93,39 +128,37 @@ public sealed class QuadTreeTests_InMemory
             }
         }
 
-        await using (var session = await quadTree.BeginSessionAsync(false))
+        await using (var session = await quadTree.BeginSessionAsync())
         {
-            try
-            {
-                await Task.WhenAll(
-                    RangeLong(0L, count).
-                    Select(async index =>
-                    {
-                        var point = allPoints[index];
-                        var results = await session.LookupPointAsync(point);
+            await Task.WhenAll(
+                RangeLong(0L, count).
+                Select(async index =>
+                {
+                    var point = allPoints[index];
+                    var results = await session.LookupPointAsync(point);
 
-                        var f1 = results.Any(entry => entry.Value == index);
-                        Assert.That(f1, Is.True);
-                        var f2 = results.All(entry => entry.Point.Equals(point));
-                        Assert.That(f2, Is.True);
-                    }));
-            }
-            finally
-            {
-                await session.FinishAsync();
-            }
+                    var f1 = results.Any(entry => entry.Value == index);
+                    Assert.That(f1, Is.True);
+                    var f2 = results.All(entry => entry.Point.Equals(point));
+                    Assert.That(f2, Is.True);
+                }));
         }
     }
 
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(100000000, 65536)]
-    public async Task BulkInsertCollection2(long count, int maxNodePoints)
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(10000000, 65536, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(10000000, 1024, 3)]
+    public async Task BulkInsertCollection2(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -133,7 +166,7 @@ public sealed class QuadTreeTests_InMemory
             await session.InsertPointsAsync(
                 RangeLong(0, count).
                 Select(index => new PointItem<long>(
-                    r.Next(0, 99999), r.Next(0, 99999), index)));
+                    GetRandomPoint(r, dimension), index)));
         }
         finally
         {
@@ -162,15 +195,20 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1, 10)]
-    [TestCase(10, 10)]
-    [TestCase(11, 10)]
-    [TestCase(100000000, 65536)]
-    public async Task BulkInsertCollection3(long count, int maxNodePoints)
+    [TestCase(1, 10, 2)]
+    [TestCase(10, 10, 2)]
+    [TestCase(11, 10, 2)]
+    [TestCase(10000000, 65536, 2)]
+    [TestCase(1, 10, 3)]
+    [TestCase(10, 10, 3)]
+    [TestCase(11, 10, 3)]
+    [TestCase(10000000, 1024, 3)]
+    public async Task BulkInsertCollection3(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        await using var session = await quadTree.BeginUpdateSessionAsync();
 
         try
         {
@@ -178,7 +216,7 @@ public sealed class QuadTreeTests_InMemory
             await session.InsertPointsAsync(
                 Select(RangeLongAsync(0, count),
                     index => new PointItem<long>(
-                    r.Next(0, 99999), r.Next(0, 99999), index)));
+                        GetRandomPoint(r, dimension), index)));
         }
         finally
         {
@@ -186,25 +224,28 @@ public sealed class QuadTreeTests_InMemory
         }
     }
 
-    [TestCase(1000000, 1024)]
-    public async Task LookupPointCollection(long count, int maxNodePoints)
+    [TestCase(100000, 1024, 2)]
+    [TestCase(100000, 256, 3)]
+    public async Task LookupPointCollection(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        var allPoints = new Point[count];
 
-        try
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
-            var allPoints = new Point[count];
-
             var r = new Random();
             for (var index = 0L; index < count; index++)
             {
-                var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                var point = GetRandomPoint(r, dimension);
                 allPoints[index] = point;
                 await session.InsertPointAsync(point, index);
             }
+        }
 
+        await using (var session = await quadTree.BeginSessionAsync())
+        {
             for (var index = 0L; index < count; index++)
             {
                 var point = allPoints[index];
@@ -216,36 +257,34 @@ public sealed class QuadTreeTests_InMemory
                 Assert.That(f2, Is.True);
             }
         }
-        finally
-        {
-            await session.FinishAsync();
-        }
     }
     
-    [TestCase(1000000, 1024)]
-    public async Task LookupBoundCollection(long count, int maxNodePoints)
+    [TestCase(100000, 1024, 2)]
+    [TestCase(100000, 256, 3)]
+    public async Task LookupBoundCollection(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        var allPoints = new Point[count];
+        var r = new Random();
 
-        try
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
-            var allPoints = new Point[count];
-
-            var r = new Random();
             for (var index = 0L; index < count; index++)
             {
-                var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                var point = GetRandomPoint(r, dimension);
                 allPoints[index] = point;
                 await session.InsertPointAsync(point, index);
             }
+        }
 
+        await using (var session = await quadTree.BeginSessionAsync())
+        {
             // Try random bounds lookup, repeats 100 times.
             for (var index = 0; index < 100; index++)
             {
-                var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
-                var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
+                var bound = GetRandomBound(r, dimension);
 
                 var expected = allPoints.
                     Select((p, index) => (p, index)).
@@ -263,36 +302,34 @@ public sealed class QuadTreeTests_InMemory
                 Assert.That(actual, Is.EqualTo(expected));
             }
         }
-        finally
-        {
-            await session.FinishAsync();
-        }
     }
 
-    [TestCase(1000000, 1024)]
-    public async Task EnumerateBoundCollection(long count, int maxNodePoints)
+    [TestCase(100000, 1024, 2)]
+    [TestCase(100000, 256, 3)]
+    public async Task EnumerateBoundCollection(long count, int maxNodePoints, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        var allPoints = new Point[count];
+        var r = new Random();
 
-        try
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
-            var allPoints = new Point[count];
-
-            var r = new Random();
             for (var index = 0L; index < count; index++)
             {
-                var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                var point = GetRandomPoint(r, dimension);
                 allPoints[index] = point;
                 await session.InsertPointAsync(point, index);
             }
+        }
 
+        await using (var session = await quadTree.BeginSessionAsync())
+        {
             // Try random bounds lookup, repeats 100 times.
             for (var index = 0; index < 100; index++)
             {
-                var point = new Point(r.Next(0, 49999), r.Next(0, 49999));
-                var bound = new Bound(point, r.Next(0, 49999), r.Next(0, 49999));
+                var bound = GetRandomBound(r, dimension);
 
                 var expected = allPoints.
                     Select((p, index) => (p, index)).
@@ -302,7 +339,7 @@ public sealed class QuadTreeTests_InMemory
                     ToArray();
 
                 var results = new List<PointItem<long>>();
-                await foreach (var entry in session.EnumerateBoundAsync(bound, default))
+                await foreach (var entry in session.EnumerateBoundAsync(bound))
                 {
                     results.Add(entry);
                 }
@@ -315,28 +352,25 @@ public sealed class QuadTreeTests_InMemory
                 Assert.That(actual, Is.EqualTo(expected));
             }
         }
-        finally
-        {
-            await session.FinishAsync();
-        }
     }
 
-    [TestCase(1000000, 1024, true)]
-    [TestCase(1000000, 1024, false)]
-    public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking)
+    [TestCase(100000, 1024, true, 2)]
+    [TestCase(100000, 1024, false, 2)]
+    [TestCase(100000, 256, true, 3)]
+    [TestCase(100000, 256, false, 3)]
+    public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        var allPoints = new Dictionary<Point, List<long>>();
+        var r = new Random();
 
-        try
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
-            var allPoints = new Dictionary<Point, List<long>>();
-
-            var r = new Random();
             for (var index = 0L; index < count; index++)
             {
-                var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                var point = GetRandomPoint(r, dimension);
                 if (!allPoints.TryGetValue(point, out var list))
                 {
                     list = new();
@@ -352,32 +386,32 @@ public sealed class QuadTreeTests_InMemory
                 var removed = await session.RemovePointsAsync(entry.Key, performShrinking);
                 Assert.That(removed, Is.EqualTo(entry.Value.Count));
             }
+        }
 
+        await using (var session = await quadTree.BeginSessionAsync())
+        {
             var willEmpty = await session.LookupBoundAsync(session.Entire);
             Assert.That(willEmpty.Length, Is.EqualTo(0));
         }
-        finally
-        {
-            await session.FinishAsync();
-        }
     }
 
-    [TestCase(1000000, 1024, true)]
-    [TestCase(1000000, 1024, false)]
-    public async Task RemoveBoundCollection(long count, int maxNodePoints, bool performShrinking)
+    [TestCase(100000, 1024, true, 2)]
+    [TestCase(100000, 1024, false, 2)]
+    [TestCase(100000, 256, true, 3)]
+    [TestCase(100000, 256, false, 3)]
+    public async Task RemoveBoundCollection(long count, int maxNodePoints, bool performShrinking, int dimension)
     {
-        var quadTree = QuadTree.Factory.Create<long>(100000, 100000, maxNodePoints);
+        var quadTree = QuadTree.Factory.Create<long>(
+            GetEntireBound(dimension), maxNodePoints);
 
-        await using var session = await quadTree.BeginSessionAsync(true);
+        var allPoints = new Dictionary<Point, List<long>>();
+        var r = new Random();
 
-        try
+        await using (var session = await quadTree.BeginUpdateSessionAsync())
         {
-            var allPoints = new Dictionary<Point, List<long>>();
-
-            var r = new Random();
             for (var index = 0L; index < count; index++)
             {
-                var point = new Point(r.Next(0, 99999), r.Next(0, 99999));
+                var point = GetRandomPoint(r, dimension);
                 if (!allPoints.TryGetValue(point, out var list))
                 {
                     list = new();
@@ -389,18 +423,19 @@ public sealed class QuadTreeTests_InMemory
             }
 
             var removed = 0L;
-            foreach (var childBound in session.Entire.ChildBounds)
+            var childBounds = session.Entire.GetChildBounds();
+            
+            foreach (var childBound in childBounds)
             {
                 removed += await session.RemoveBoundAsync(childBound, performShrinking);
             }
             Assert.That(removed, Is.EqualTo(count));
+        }
 
+        await using (var session = await quadTree.BeginSessionAsync())
+        {
             var willEmpty = await session.LookupBoundAsync(session.Entire);
             Assert.That(willEmpty.Length, Is.EqualTo(0));
-        }
-        finally
-        {
-            await session.FinishAsync();
         }
     }
 }

@@ -7,6 +7,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+using MassivePoints.Collections;
+using MassivePoints.DataProvider;
+using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,8 +17,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using MassivePoints.Collections;
-using Nito.AsyncEx;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
@@ -35,6 +36,11 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
     private readonly int maxNodePoints;
     private int maxNodeId = 0;
 
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="entire">The overall range of the coordinate points managed</param>
+    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     public InMemoryDataProvider(
         Bound entire,
         int maxNodePoints = 65536)
@@ -104,9 +110,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
 
         public ValueTask<QuadTreeNode<int>?> GetNodeAsync(
             int nodeId, CancellationToken ct) =>
-            new((this.parent.nodes.TryGetValue(nodeId, out var node) && node.TopLeftId != -1) ?
-                new QuadTreeNode<int>(node.TopLeftId, node.TopRightId, node.BottomLeftId, node.BottomRightId) :
-                null);
+            new(this.parent.nodes.TryGetValue(nodeId, out var node) ? node : null);
 
         public ValueTask<int> GetPointCountAsync(
             int nodeId, CancellationToken ct) =>
@@ -136,9 +140,15 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         public async ValueTask<QuadTreeNode<int>> DistributePointsAsync(
             int nodeId, Bound[] toBounds, CancellationToken ct)
         {
-            var baseNodeId = this.parent.maxNodeId;
-            this.parent.maxNodeId += 4;
-            var node = new QuadTreeNode<int>(baseNodeId + 1, baseNodeId + 2, baseNodeId + 3, baseNodeId + 4);
+            var baseNodeId = this.parent.maxNodeId + 1;
+            this.parent.maxNodeId += toBounds.Length;
+
+            var childIds = new int[toBounds.Length];
+            for (var index = 0; index < childIds.Length; index++)
+            {
+                childIds[index] = baseNodeId + index;
+            }
+            var node = new QuadTreeNode<int>(childIds);
 
             var points = this.parent.nodePoints[nodeId];
             var toPoints = new ExpandableArray<PointItem<TValue>>[toBounds.Length];

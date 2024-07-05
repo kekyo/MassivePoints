@@ -7,174 +7,260 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-using System.ComponentModel;
+using System;
+using System.Linq;
 
 namespace MassivePoints;
 
 /// <summary>
 /// This is a structure that defines a coordinate range.
 /// </summary>
-public readonly struct Bound
+public readonly struct Bound : IEquatable<Bound>
 {
     //         - ------ X ------> +
     // -  +-------------+-------------+
     // |  |             |             |
     // |  | TopLeft     | TopRight    |
+    // |  |   Axes[0]   |   Axes[1]   |
     // |  |             |             |
     // Y  +-------------+-------------+
     // |  |             |             |
     // |  | BottomLeft  | BottomRight |
-    // v  |             |             |
+    // v  |   Axes[2]   |   Axes[3]   |
+    // |  |             |             |
     // +  +-------------+-------------+
-    
-    /// <summary>
-    /// X
-    /// </summary>
-    public double X { get; }
-    
-    /// <summary>
-    /// Y
-    /// </summary>
-    public double Y { get; }
+
+    private static readonly object locker = new();
+    private static int[] sizes = [1, 2, 4, 8, 16];
 
     /// <summary>
-    /// Range width
+    /// Get child bound count.
     /// </summary>
-    public double Width { get; }
-
-    /// <summary>
-    /// Range height
-    /// </summary>
-    public double Height { get; }
-
-    public Bound(double width, double height)
+    /// <param name="dimension">Target dimension</param>
+    /// <returns>Child bound count.</returns>
+    public static int GetChildBoundCount(int dimension)
     {
-        this.X = 0;
-        this.Y = 0;
-        this.Width = width;
-        this.Height = height;
-    }
-
-    public Bound(Point point, double width, double height)
-    {
-        this.X = point.X;
-        this.Y = point.Y;
-        this.Width = width;
-        this.Height = height;
-    }
-
-    public Bound(double x, double y, double width, double height)
-    {
-        this.X = x;
-        this.Y = y;
-        this.Width = width;
-        this.Height = height;
-    }
-
-    [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public Bound[] ChildBounds
-    {
-        get
+        if (dimension >= sizes.Length)
         {
-            var wh = this.Width / 2;
-            var hh = this.Height / 2;
-            var topLeft = new Bound(this.X, this.Y, wh, hh);
-            var topRight = new Bound(this.X + wh, this.Y, wh, hh);
-            var bottomLeft = new Bound(this.X, this.Y + hh, wh, hh);
-            var bottomRight = new Bound(this.X + wh, this.Y + hh, wh, hh);
-            return new[] { topLeft, topRight, bottomLeft, bottomRight };
+            lock (locker)
+            {
+                if (dimension >= sizes.Length)
+                {
+                    var newSizes = new int[dimension + 1];
+                    var size = 1;
+                    for (var index = 0; index <= dimension; index++)
+                    {
+                        newSizes[index] = size;
+                        size *= 2;
+                    }
+                    sizes = newSizes;
+                }
+            }
+        }
+        return sizes[dimension];
+    }
+
+    /// <summary>
+    /// The earth globe (2D) bound.
+    /// </summary>
+    public static readonly Bound TheGlobe2D =
+        new(0.0, -90.0, 360.0, 180);
+
+    /// <summary>
+    /// The axis definitions.
+    /// </summary>
+    public readonly Axis[] Axes;
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range based on zero origin.</remarks>
+    public Bound(double width, double height) =>
+        this.Axes = [new Axis(0, width), new Axis(0, height)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="origin">Origin point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(Point origin, double width, double height)
+    {
+        if (origin.Elements is not [var x, var y])
+        {
+            throw new ArgumentException($"Could not create non 2D range: {origin.Elements.Length}");
+        }
+        this.Axes = [new Axis(x, width), new Axis(y, height)];
+    }
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">Origin X point</param>
+    /// <param name="y">Origin Y point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(double x, double y, double width, double height) =>
+        this.Axes = [new Axis(x, width), new Axis(y, height)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 3D range based on zero origin.</remarks>
+    public Bound(double width, double height, double depth) =>
+        this.Axes = [new Axis(0, width), new Axis(0, height), new Axis(0, depth)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="origin">Origin point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(Point origin, double width, double height, double depth)
+    {
+        if (origin.Elements is not [var x, var y, var z])
+        {
+            throw new ArgumentException($"Could not create non 3D range: {origin.Elements.Length}");
+        }
+        this.Axes = [new Axis(x, width),new Axis(y, height),new Axis(z, depth)];
+    }
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="x">Origin X point</param>
+    /// <param name="y">Origin Y point</param>
+    /// <param name="z">Origin Z point</param>
+    /// <param name="width">Range width</param>
+    /// <param name="height">Range height</param>
+    /// <param name="depth">Range depth</param>
+    /// <remarks>This constructor will create 2D range.</remarks>
+    public Bound(double x, double y, double z, double width, double height, double depth) =>
+        this.Axes = [new Axis(x, width), new Axis(y, height), new Axis(z, depth)];
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="axes">The axes define a range</param>
+    public Bound(params Axis[] axes) =>
+        this.Axes = axes;
+
+    /// <summary>
+    /// X axis origin.
+    /// </summary>
+    public double X =>
+        this.Axes is [var x,..] ? x.Origin : double.NaN;
+    
+    /// <summary>
+    /// Y axis origin.
+    /// </summary>
+    public double Y =>
+        this.Axes is [_,var y,..] ? y.Origin : double.NaN;
+    
+    /// <summary>
+    /// Z axis origin.
+    /// </summary>
+    public double Z =>
+        this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
+
+    /// <summary>
+    /// Range width.
+    /// </summary>
+    public double Width =>
+        this.Axes is [var x,..] ? x.Size : double.NaN;
+
+    /// <summary>
+    /// Range height.
+    /// </summary>
+    public double Height =>
+        this.Axes is [_,var y,..] ? y.Size : double.NaN;
+
+    /// <summary>
+    /// Range depth.
+    /// </summary>
+    public double Depth =>
+        this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
+
+    public bool Equals(Bound other)
+    {
+        if (this.Axes.Length != other.Axes.Length)
+        {
+            return false;
+        }
+        for (var index = 0; index < this.Axes.Length; index++)
+        {
+            if (this.Axes[index].Equals(other.Axes[index]) == false)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool IEquatable<Bound>.Equals(Bound other) =>
+        this.Equals(other);
+
+    public override bool Equals(object? obj) =>
+        obj is Bound rhs && this.Equals(rhs);
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = 0;
+            for (var index = 0; index < this.Axes.Length; index++)
+            {
+                hash ^= this.Axes[index].GetHashCode() * 397;
+            }
+            return hash;
         }
     }
 
     public override string ToString() =>
-        $"Bound: [{this.X},{this.Y} - {this.X + this.Width},{this.Y + this.Height}), Size={this.Width},{this.Height}";
+        $"Bound: [{string.Join(",", this.Axes.Select(axis => axis.Origin))} - {string.Join(",", this.Axes.Select(axis => axis.Origin + axis.Size))}), Size={string.Join(",", this.Axes.Select(axis => axis.Size))}";
 
     public static implicit operator Bound((double width, double height) size) =>
-        new(size.width, size.height);
+        new Bound(size.width, size.height);
 
     public static implicit operator Bound((Point point, double width, double height) bound) =>
-        new(bound.point, bound.width, bound.height);
+        new Bound(bound.point, bound.width, bound.height);
 
     public static implicit operator Bound((double x, double y, double width, double height) bound) =>
-        new(bound.x, bound.y, bound.width, bound.height);
+        new Bound(bound.x, bound.y, bound.width, bound.height);
+
+    public static implicit operator Bound((double width, double height, double depth) size) =>
+        new Bound(size.width, size.height, size.depth);
+
+    public static implicit operator Bound((Point point, double width, double height, double depth) bound) =>
+        new Bound(bound.point, bound.width, bound.height, bound.depth);
+
+    public static implicit operator Bound((double x, double y, double z, double width, double height, double depth) bound) =>
+        new Bound(bound.x, bound.y, bound.z, bound.width, bound.height, bound.depth);
 
     public static Bound Create(double width, double height) =>
-        new(width, height);
+        new Bound(width, height);
 
     public static Bound Create(Point point, double width, double height) =>
-        new(point, width, height);
+        new Bound(point, width, height);
 
     public static Bound Create(double x, double y, double width, double height) =>
-        new(x, y, width, height);
-}
+        new Bound(x, y, width, height);
 
-public static class BoundExtension
-{
-    public static void Deconstruct(
-        this Bound self,
-        out double x,
-        out double y,
-        out double width,
-        out double height)
-    {
-        x = self.X;
-        y = self.Y;
-        width = self.Width;
-        height = self.Height;
-    }
+    public static Bound Create(double width, double height, double depth) =>
+        new Bound(width, height, depth);
 
-    /// <summary>
-    /// Checks whether the specified coordinate point is within this range.
-    /// </summary>
-    /// <param name="self">`Bound`</param>
-    /// <param name="point">A coordinate point</param>
-    /// <returns>True when within.</returns>
-    public static bool IsWithin(
-        this Bound self, Point point) =>
-        self.X <= point.X && point.X < (self.X + self.Width) &&
-        self.Y <= point.Y && point.Y < (self.Y + self.Height);
+    public static Bound Create(Point point, double width, double height, double depth) =>
+        new Bound(point, width, height, depth);
 
-    /// <summary>
-    /// Checks whether the specified coordinate point is within this range.
-    /// </summary>
-    /// <param name="self">`Bound`</param>
-    /// <param name="x">X</param>
-    /// <param name="y">Y</param>
-    /// <returns>True is within.</returns>
-    public static bool IsWithin(
-        this Bound self, double x, double y) =>
-        self.X <= x && x < (self.X + self.Width) &&
-        self.Y <= y && y < (self.Y + self.Height);
-
-    /// <summary>
-    /// Checks whether the specified range is intersects this range.
-    /// </summary>
-    /// <param name="self">`Bound`</param>
-    /// <param name="bound">Coordinate range</param>
-    /// <returns>True when intersected.</returns>
-    public static bool IsIntersection(
-        this Bound self, Bound bound)
-    {
-        var lx1 = self.X;
-        var lx2 = self.X + self.Width;
-        var rx1 = bound.X;
-        var rx2 = bound.X + bound.Width;
-
-        if (lx1 > rx2 || rx1 > lx2)
-        {
-            return false;
-        }
-
-        var ly1 = self.Y;
-        var ly2 = self.Y + self.Height;
-        var ry1 = bound.Y;
-        var ry2 = bound.Y + bound.Height;
-
-        if (ly1 > ry2 || ry1 > ly2)
-        {
-            return false;
-        }
-
-        return true;
-    }
+    public static Bound Create(double x, double y, double z, double width, double height, double depth) =>
+        new Bound(x, y, z, width, height, depth);
 }

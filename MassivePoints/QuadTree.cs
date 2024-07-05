@@ -9,6 +9,7 @@
 
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.DataProvider;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
@@ -30,15 +31,26 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
         this.provider = provider;
 
     /// <summary>
-    /// Begin a session.
+    /// Begin a reading session.
     /// </summary>
-    /// <param name="willUpdate">True if possibility changes will be made during the session</param>
     /// <param name="ct">`CancellationToken`</param>
-    /// <returns>The session</returns>
+    /// <returns>The reading session</returns>
     public async ValueTask<IQuadTreeSession<TValue>> BeginSessionAsync(
-        bool willUpdate, CancellationToken ct = default)
+        CancellationToken ct = default)
     {
-        var session = await this.provider.BeginSessionAsync(willUpdate, ct);
+        var session = await this.provider.BeginSessionAsync(false, ct);
         return new QuadTreeSession<TValue,TNodeId>(session);
+    }
+
+    /// <summary>
+    /// Begin an update session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The update session</returns>
+    public async ValueTask<IQuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+        CancellationToken ct = default)
+    {
+        var session = await this.provider.BeginSessionAsync(true, ct);
+        return new QuadTreeUpdateSession<TValue,TNodeId>(session);
     }
 }

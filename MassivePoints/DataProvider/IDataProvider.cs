@@ -11,7 +11,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace MassivePoints;
+namespace MassivePoints.DataProvider;
 
 /// <summary>
 /// QuadTree backend data provider interface.
