@@ -70,7 +70,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
 
         for (var index = 0; index < childIds.Length; index++)
         {
@@ -117,7 +117,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
 
         await Task.WhenAll(
             childBounds.
@@ -170,7 +170,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.ChildBounds;
+        var childBounds = nodeBound.GetChildBounds();
         IAsyncEnumerable<PointItem<TValue>>? results = null;
             
         for (var index = 0; index < childIds.Length; index++)

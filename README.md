@@ -1,6 +1,6 @@
 # MassivePoints
 
-.NET implementation of QuadTree, hold a very large number of 2D coordinates and perform fast range searches, with in-memory and database offloading. 
+.NET implementation of QuadTree, hold a very large number of multi-dimensional coordinates and perform fast range searches, with in-memory and database offloading. 
 
 ![MassivePoints](Images/MassivePoints.200.png)
 
@@ -26,7 +26,7 @@ It's very easy to use:
 ```csharp
 using MassivePoints;
 
-// Create QuadTree dictionary with coordinate bound
+// Create QuadTree dictionary with 2D coordinate bound
 // and pair of value type on the memory.
 double width = 100000.0;
 double height = 100000.0;
@@ -37,7 +37,7 @@ IQuadTree<string> quadTree =
 await using IQuadTreeSession<string> session =
     await quadTree.BeginSessionAsync(true);
 
-// Insert a lot of random coordinates.
+// Insert a lot of random 2D coordinates.
 var count = 1000000;
 var r = new Random();
 for (var index = 0; index < count; index++)
@@ -47,7 +47,7 @@ for (var index = 0; index < count; index++)
     await session.InsertPointAsync(new Point(x, y), $"Point{index}");
 }
 
-// Extract values by specifying coordinate range.
+// Extract values by specifying 2D coordinate range.
 double x = 30000.0;
 double y = 40000.0;
 double width = 35000.0;
@@ -63,6 +63,9 @@ It has the following features:
 
 * Implements QuadTree coordinate search algorithm.
 * Included add a coordinate point, lookup and remove features.
+* Supported multi-dimensional coordinate points.
+  * By extending it to N-dimensions, you will be using a naturally extended algorithm,
+    such as BinaryTree, QuadTree, OctaTree and more.
 * Completely separates between QuadTree controller and data provider.
   * Builtin data providers: In-memory and ADO.NET.
 * Fully asynchronous operation.
@@ -86,12 +89,24 @@ Install [MassivePoints](https://www.nuget.org/packages/MassivePoints) from NuGet
 ```csharp
 using MassivePoints;
 
-// Create QuadTree dictionary with coordinate bound
+// Create QuadTree dictionary with 2D coordinate bound
 // and pair of value type on the memory.
 double width = 100000.0;
 double height = 100000.0;
 IQuadTree<string> quadTree = QuadTree.Factory.Create<string>(width, height);
+
+// Create QuadTree (OctaTree) dictionary with 3D coordinate bound
+// and pair of value type on the memory.
+double width = 100000.0;
+double height = 100000.0;
+double depth = 100000.0;
+IQuadTree<string> octaTree = QuadTree.Factory.Create<string>(width, height, depth);
 ```
+
+If you want to use a dimension that goes over three dimensions, use `new Bound(...)` to specify it.
+
+In all the cases discussed below, 2D coordinate points are used as examples.
+However, please remember that you can use various overloads to express N-dimensional coordinates.
 
 ### Create QuadTree with ADO.NET provider
 
@@ -111,7 +126,7 @@ var connectionString = new SqliteConnectionStringBuilder()
 }.ToString();
 
 // Create QuadTree provider using SQLite database.
-double width = 100000.0;
+double width = 100000.0;   // 2D coordinate bound.
 double height = 100000.0;
 var provider = QuadTree.Factory.CreateProvider<string>(
     () => new SqliteConnection(connectionString),
@@ -119,12 +134,19 @@ var provider = QuadTree.Factory.CreateProvider<string>(
     new Bound(width, height));
 
 // Setup the SQLite tables to be used with QuadTree.
-await provider.CreateSQLiteTablesAsync(false, default);
-await provider.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, default);
+await provider.CreateSQLiteTablesAsync(false);
 
 // Create QuadTree dictionary.
 IQuadTree<string> quadTree = QuadTree.Factory.Create(provider);
 ```
+
+Even when using ADO.NET, it is possible to handle dimensions greater than three dimensions.
+In this case, the database schema definition will also use a definition that supports N-dimensions.
+
+When using SQLite, you can use `provider.CreateSQLiteTablesAsync(...)`
+to automatically generate N-dimensional tables can be generated automatically.
+
+The `DbDataProviderConfiguration` class provides customization points for use with various database systems.
 
 ### Begin a session
 
@@ -160,7 +182,7 @@ If use `BeginUpdateSessionAsync()`, the concurrent operation may fail.
 Conversely if `BeginSessionAsync()`, concurrent operation is possible and multiple lookup operations may be performed simultaneously.
 
 |Method|Lookup|Update: Insert,Remove|Concurrency|
-|:----------------------------|:----|:----|:----|
+|:----|:----|:----|:----|
 |`BeginUpdateSessionAsync()`|Yes|Yes|No|
 |`BeginSessionAsync()`|Yes|No|Yes|
 
@@ -172,11 +194,14 @@ Depending on the backend data provider, the updates may be undone.
 You can insert a coordinate point and a value to associate with it using `InsertPointAsync()`:
 
 ```csharp
-// Insert a random coordinate point.
+// Insert a random 2D coordinate point.
 var r = new Random();
 Point point = new Point(r.Next(0, width - 1), r.Next(0, height - 1));
 await session.InsertPointAsync(point, $"Point{index}");
 ```
+
+If you want to insert a N-dimensional coordinate point,
+you can use the overload of `new Point(x, y, z)` or others.
 
 You can also perform other bulk inserts,
 inserting a large number of coordinate points to faster with `InsertPointsAsync()`.
@@ -188,16 +213,20 @@ var r = new Random();
 
 await session.InsertPointsAsync(
     Enumerable.Range(0, count).
-    Select(_ => PointItem.Create(
+    Select(_ => PointItem.Create(   // Makes pair of a point and a value.
         r.Next(0, width - 1), r.Next(0, height - 1), $"Point{index}")));
 ```
+
+When performing bulk insertion,
+use `PointItem<TValue>` to represent the pairs of values associated with the coordinate points.
+As shown above, you can omit the generic type parameter by using `PointItem.Create(...)` method.
 
 ### Lookup coordinate points
 
 With exact coordinate point by `LookupPointAsync()`:
 
 ```csharp
-// Extract values by specifying a coordinate point.
+// Extract values by specifying a 2D coordinate point.
 // There is a possibility that multiple values
 // with the same coordinates will be extracted.
 
@@ -278,13 +307,17 @@ long removed = await session.RemoveBoundAsync(
     targetBound, performShrinking: true);
 ```
 
+### ADO.NET database schema
+
+TODO:
+
+
 ----
 
 ## TODO
 
 * Additional xml comment and documents.
 * Supports F# friendly interfaces.
-* Supports 3D or Multi-dimensionals.
 * Added more useful helper methods.
 
 ## License
@@ -295,6 +328,7 @@ Apache-v2
 
 * 0.10.0:
   * Split session interface between updatable and readable.
+  * Supported multi-dimensional coordinate points.
 * 0.9.0:
   * Added bulk insert features.
   * Improved concurrency.

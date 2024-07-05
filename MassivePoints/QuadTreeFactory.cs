@@ -36,19 +36,6 @@ public static class QuadTreeFactoryExtension
     /// Create an in-memory data provider.
     /// </summary>
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-    /// <param name="width">Entire coordinate range</param>
-    /// <param name="height">Entire coordinate range</param>
-    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
-    /// <returns>Data provider</returns>
-    public static InMemoryDataProvider<TValue> CreateProvider<TValue>(
-        this QuadTreeFactory _,
-        double width, double height, int maxNodePoints = 65536) =>
-        new((width, height), maxNodePoints);
-
-    /// <summary>
-    /// Create an in-memory data provider.
-    /// </summary>
-    /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="entire">Entire coordinate range</param>
     /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
@@ -63,16 +50,12 @@ public static class QuadTreeFactoryExtension
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="connectionFactory">Database connection factory</param>
     /// <param name="configuration">Database configuration</param>
-    /// <param name="entire">Entire coordinate range</param>
-    /// <param name="maxNodePoints">Maximum number of coordinate points in each node</param>
     /// <returns>Data provider</returns>
     public static DbDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
         Func<DbConnection> connectionFactory,
-        DbDataProviderConfiguration configuration,
-        Bound entire,
-        int maxNodePoints = 1024) =>
-        new(connectionFactory, configuration, entire, maxNodePoints);
+        DbDataProviderConfiguration configuration) =>
+        new(connectionFactory, configuration);
 
     /// <summary>
     /// Create QuadTree with in-memory data provider.
@@ -80,15 +63,41 @@ public static class QuadTreeFactoryExtension
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="width">Entire coordinate range</param>
     /// <param name="height">Entire coordinate range</param>
-    /// <returns>QuadTree instance</returns>
+    /// <returns>2D coordinate points QuadTree instance</returns>
     public static IQuadTree<TValue> Create<TValue>(
         this QuadTreeFactory _,
         double width, double height, int maxNodePoints = 65536) =>
         new QuadTree<TValue, int>(
-            new InMemoryDataProvider<TValue>((width, height), maxNodePoints));
+            new InMemoryDataProvider<TValue>(new Bound(width, height), maxNodePoints));
 
     /// <summary>
-    /// Create QuadTree.
+    /// Create QuadTree with in-memory data provider.
+    /// </summary>
+    /// <typeparam name="TValue">Coordinate point related value type</typeparam>
+    /// <param name="width">Entire coordinate range</param>
+    /// <param name="height">Entire coordinate range</param>
+    /// <param name="depth">Entire coordinate range</param>
+    /// <returns>3D coordinate points QuadTree instance</returns>
+    public static IQuadTree<TValue> Create<TValue>(
+        this QuadTreeFactory _,
+        double width, double height, double depth, int maxNodePoints = 65536) =>
+        new QuadTree<TValue, int>(
+            new InMemoryDataProvider<TValue>(new Bound(width, height, depth), maxNodePoints));
+
+    /// <summary>
+    /// Create QuadTree with in-memory data provider.
+    /// </summary>
+    /// <typeparam name="TValue">Coordinate point related value type</typeparam>
+    /// <param name="entire">Entire coordinate range</param>
+    /// <returns>QuadTree instance</returns>
+    public static IQuadTree<TValue> Create<TValue>(
+        this QuadTreeFactory _,
+        Bound entire, int maxNodePoints = 65536) =>
+        new QuadTree<TValue, int>(
+            new InMemoryDataProvider<TValue>(entire, maxNodePoints));
+
+    /// <summary>
+    /// Create QuadTree with a data provider.
     /// </summary>
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>

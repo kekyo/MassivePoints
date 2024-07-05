@@ -7,8 +7,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-using System.ComponentModel;
-
 namespace MassivePoints.DataProvider;
 
 /// <summary>
@@ -17,34 +15,43 @@ namespace MassivePoints.DataProvider;
 /// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
 public sealed class QuadTreeNode<TNodeId>
 {
-    private TNodeId[]? childIds;
-    
-    public readonly TNodeId TopLeftId;
-    public readonly TNodeId TopRightId;
-    public readonly TNodeId BottomLeftId;
-    public readonly TNodeId BottomRightId;
-    
-    public QuadTreeNode(
-        TNodeId topLeftNodeId, TNodeId topRightNodeId, TNodeId bottomLeftNodeId, TNodeId bottomRightNodeId)
-    {
-        this.TopLeftId = topLeftNodeId;
-        this.TopRightId = topRightNodeId;
-        this.BottomLeftId = bottomLeftNodeId;
-        this.BottomRightId = bottomRightNodeId;
-    }
+    //         - ------ X ------> +
+    // -  +-------------+-------------+
+    // |  |             |             |
+    // |  | TopLeft     | TopRight    |
+    // |  | ChildIds[0] | ChildIds[1] |
+    // |  |             |             |
+    // Y  +-------------+-------------+
+    // |  |             |             |
+    // |  | BottomLeft  | BottomRight |
+    // v  | ChildIds[2] | ChildIds[3] |
+    // |  |             |             |
+    // +  +-------------+-------------+
 
-    public TNodeId[] ChildIds
-    {
-        get
-        {
-            if (this.childIds == null)
-            {
-                this.childIds = new[] { this.TopLeftId, TopRightId, BottomLeftId, BottomRightId };
-            }
-            return this.childIds;
-        }
-    }
+    /// <summary>
+    /// Child node id list.
+    /// </summary>
+    public readonly TNodeId[] ChildIds;
+
+    /// <summary>
+    /// Constructor.
+    /// </summary>
+    /// <param name="childIds">Child not id list</param>
+    public QuadTreeNode(TNodeId[] childIds) =>
+        this.ChildIds = childIds;
+
+    public TNodeId TopLeftId =>
+        this.ChildIds is [var id,_,_,_] ? id : default!;
+
+    public TNodeId TopRightId =>
+        this.ChildIds is [_,var id,_,_] ? id : default!;
+
+    public TNodeId BottomLeftId =>
+        this.ChildIds is [_,_,var id,_] ? id : default!;
+
+    public TNodeId BottomRightId =>
+        this.ChildIds is [_,_,_,var id] ? id : default!;
 
     public override string ToString() =>
-        $"Node: {this.TopLeftId},{this.TopRightId},{this.BottomLeftId},{this.BottomRightId}";
+        $"Node: {string.Join(",", this.ChildIds)}";
 }
