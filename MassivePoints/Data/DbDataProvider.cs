@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////
+﻿////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Common;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -376,14 +377,22 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 args[1 + index * 2] = axis.Origin;
                 args[1 + index * 2 + 1] = axis.Origin + axis.Size;
             }
-            args[args.Length - 1] = toNodeId;
+            args[^1] = toNodeId;
 
-            if (await command.ExecuteNonQueryAsync(
-                ct, args) < 0)
+            var moved = await command.ExecuteNonQueryAsync(
+                ct, args);
+            if (moved < 0)
             {
                 throw new InvalidDataException(
                     $"MovePoints: NodeId={nodeId}, TargetBound={bound}, ToNodeId={toNodeId}");
             }
+            
+#if DEBUG
+            if (moved >= 1)
+            {
+                Debug.WriteLine($"Moved: From={nodeId}, To={toNodeId}, Bound={bound}, Count={moved}");
+            }
+#endif
         }
 
         public async ValueTask<QuadTreeNode<long>> DistributePointsAsync(
