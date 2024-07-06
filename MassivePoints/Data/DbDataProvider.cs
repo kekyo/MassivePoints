@@ -329,10 +329,14 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 record => record.GetInt32(0),
                 ct, nodeId);
 
+            var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
+            if (insertCount <= 0)
+            {
+                return 0;
+            }
+
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.insertPointQuery, ct);
-
-            var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
 
             var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() + 1];
             args[0] = nodeId;
