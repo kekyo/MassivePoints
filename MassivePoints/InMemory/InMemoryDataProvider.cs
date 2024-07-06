@@ -85,6 +85,9 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return default;
         }
 
+        public ValueTask FlushAsync() =>
+            default;
+
         public ValueTask FinishAsync()
         {
             this.disposer.Dispose();

@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -248,6 +248,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 
         public ValueTask DisposeAsync() =>
             this.connectionCache.DisposeAsync();
+
+        public ValueTask FlushAsync() =>
+            this.connectionCache.CommitAsync();
 
         public ValueTask FinishAsync() =>
             this.connectionCache.CommitAsync();

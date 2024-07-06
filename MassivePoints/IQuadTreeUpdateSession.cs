@@ -21,10 +21,15 @@ namespace MassivePoints;
 public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
 {
     /// <summary>
+    /// Flush partially data.
+    /// </summary>
+    ValueTask FlushAsync();
+
+    /// <summary>
     /// Finish the session.
     /// </summary>
     ValueTask FinishAsync();
-
+    
     /// <summary>
     /// Insert a coordinate point.
     /// </summary>

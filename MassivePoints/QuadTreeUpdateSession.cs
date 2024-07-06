@@ -42,6 +42,12 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         base(providerSession)
     {
     }
+    
+    /// <summary>
+    /// Flush partially data.
+    /// </summary>
+    public ValueTask FlushAsync() =>
+        this.providerSession.FlushAsync();
 
     /// <summary>
     /// Finish the session.

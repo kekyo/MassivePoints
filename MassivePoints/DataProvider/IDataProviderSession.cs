@@ -64,6 +64,11 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     /// Root node ID.
     /// </summary>
     TNodeId RootId { get; }
+    
+    /// <summary>
+    /// Flush partially data.
+    /// </summary>
+    ValueTask FlushAsync();
 
     /// <summary>
     /// Finish the session.
