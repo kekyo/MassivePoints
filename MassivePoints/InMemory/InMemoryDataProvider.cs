@@ -153,15 +153,15 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             var points = this.parent.nodePoints[nodeId];
             var toPoints = new ExpandableArray<PointItem<TValue>>[toBounds.Length];
 
-            await Task.WhenAll(
-                Enumerable.Range(0, toPoints.Length).
-                Select(index => Task.Run(() =>
+            Parallel.For(
+                0, toPoints.Length,
+                index =>
                 {
                     var toPointList = new ExpandableArray<PointItem<TValue>>();
-                    toPoints[index] = toPointList;
                     var toBound = toBounds[index];
                     toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Point));
-                })));
+                    toPoints[index] = toPointList;
+                });
 
             Debug.Assert(toPoints.Sum(pointItems => pointItems.Count) == points.Count);
 

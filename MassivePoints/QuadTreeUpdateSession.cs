@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////
+﻿////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -144,15 +144,15 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
 
         var splittedLists = new ExpandableArray<PointItem<TValue>>[childIds.Length];
 
-        await Task.WhenAll(
-            Enumerable.Range(0, childIds.Length).
-            Select(index => Task.Run(() =>
+        Parallel.For(
+            0, childIds.Length,
+            index => 
             {
                 var list = new ExpandableArray<PointItem<TValue>>();
-                splittedLists[index] = list;
                 var bound = childBounds[index];
                 list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Point));
-            })));
+                splittedLists[index] = list;
+            });
 
         for (var index = 0; index < childIds.Length; index++)
         {
