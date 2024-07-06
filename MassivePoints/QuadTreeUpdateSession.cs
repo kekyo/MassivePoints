@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -175,7 +175,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         int bulkInsertBlockSize,
         CancellationToken ct)
     {
-        if (points.Count < bulkInsertBlockSize)
+        if (points.Count <= bulkInsertBlockSize)
         {
             await this.InsertPointsCoreAsync(
                 nodeId, nodeBound, points, bulkInsertBlockSize, ct);
