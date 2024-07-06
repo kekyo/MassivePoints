@@ -16,10 +16,10 @@
 
 ## What is this?
 
-Have you ever tried to store a large amount of 2D coordinate points and extract these from any given coordinate range?
+Have you ever tried to store a large amount of 2D/3D coordinate points and extract these from any given coordinate range?
 Normally for such requests, we would use a GIS-compatible database system or service with complex management.
 
-This library provides the ability to store and filter ranges of 2D coordinate points in the portable way.
+This library provides the ability to store and filter ranges of multi-dimensional coordinate points in the portable way.
 
 It's very easy to use:
 
@@ -68,6 +68,8 @@ It has the following features:
     such as BinaryTree, QuadTree, OctaTree and more.
 * Completely separates between QuadTree controller and data provider.
   * Builtin data providers: In-memory and ADO.NET.
+  * Using the SQLite ADO.NET provider (Microsoft.Data.Sqlite),
+    it is possible to perform bulk inserts of 170,000 2D coordinate points per second in my environment.
 * Fully asynchronous operation.
 * Supported asynchronous streaming lookup (`IAsyncEnumerable<T>`).
 
@@ -85,6 +87,8 @@ It has the following features:
 Install [MassivePoints](https://www.nuget.org/packages/MassivePoints) from NuGet.
 
 ### Create in-memory QuadTree
+
+You can use the factory to easy to use QuadTree:
 
 ```csharp
 using MassivePoints;
@@ -111,7 +115,6 @@ However, please remember that you can use various overloads to express N-dimensi
 ### Create QuadTree with ADO.NET provider
 
 This sample code uses SQLite ADO.NET provider: [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
-
 
 ```csharp
 using MassivePoints;
@@ -326,6 +329,12 @@ Apache-v2
 
 ## History
 
+* 0.11.0:
+  * Added flush method.
+  * Improved bulk insertion when the node already dense points.
+  * Improved parallel distribution works.
+  * Fixed infinite recursive calls when bulk insert count exceeds ceiling.
+  * Added OpenStreetMap pbf insertion sample ([in the samples directory](samples/ImportOsmNode))
 * 0.10.0:
   * Split session interface between updatable and readable.
   * Supported multi-dimensional coordinate points.
