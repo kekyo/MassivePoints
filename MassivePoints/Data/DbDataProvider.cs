@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Common;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -249,6 +250,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         public ValueTask DisposeAsync() =>
             this.connectionCache.DisposeAsync();
 
+        public ValueTask FlushAsync() =>
+            this.connectionCache.CommitAsync();
+
         public ValueTask FinishAsync() =>
             this.connectionCache.CommitAsync();
 
@@ -314,11 +318,12 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         /// <param name="nodeId">Node ID</param>
         /// <param name="points">Coordinate points</param>
         /// <param name="offset">Coordinate point list offset</param>
+        /// <param name="isForceInsert">Force insert all points</param>
         /// <param name="ct">`CancellationToken`</param>
         /// <returns>Inserted points</returns>
         /// <remarks>You can override this method to provide your own bulk insertion.</remarks>
         public virtual async ValueTask<int> InsertPointsAsync(
-            long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
+            long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct)
         {
             using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointCountQuery, ct);
@@ -326,10 +331,16 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 record => record.GetInt32(0),
                 ct, nodeId);
 
+            var insertCount = isForceInsert ?
+                points.Count - offset :
+                Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
+            if (insertCount <= 0)
+            {
+                return 0;
+            }
+
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.insertPointQuery, ct);
-
-            var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
 
             var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() + 1];
             args[0] = nodeId;
@@ -369,14 +380,22 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 args[1 + index * 2] = axis.Origin;
                 args[1 + index * 2 + 1] = axis.Origin + axis.Size;
             }
-            args[args.Length - 1] = toNodeId;
+            args[^1] = toNodeId;
 
-            if (await command.ExecuteNonQueryAsync(
-                ct, args) < 0)
+            var moved = await command.ExecuteNonQueryAsync(
+                ct, args);
+            if (moved < 0)
             {
                 throw new InvalidDataException(
                     $"MovePoints: NodeId={nodeId}, TargetBound={bound}, ToNodeId={toNodeId}");
             }
+            
+#if DEBUG
+            if (moved >= 1)
+            {
+                Debug.WriteLine($"Moved: From={nodeId}, To={toNodeId}, Bound={bound}, Count={moved}");
+            }
+#endif
         }
 
         public async ValueTask<QuadTreeNode<long>> DistributePointsAsync(
@@ -574,7 +593,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
-        public async ValueTask<RemoveResults> RemovePointsAsync(
+        public async ValueTask<RemoveResults> RemovePointAsync(
             long nodeId, Point point, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(

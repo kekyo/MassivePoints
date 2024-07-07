@@ -85,6 +85,9 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return default;
         }
 
+        public ValueTask FlushAsync() =>
+            default;
+
         public ValueTask FinishAsync()
         {
             this.disposer.Dispose();
@@ -117,19 +120,23 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             new(this.parent.nodePoints.TryGetValue(nodeId, out var points) ? points.Count : 0);
 
         public ValueTask<int> InsertPointsAsync(
-            int nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
+            int nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct)
         {
             int insertCount;
 
             if (!this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
             {
-                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints);
+                insertCount = isForceInsert ?
+                    points.Count - offset :
+                    Math.Min(points.Count - offset, this.MaxNodePoints);
                 pointItems = new(insertCount);
                 this.parent.nodePoints.Add(nodeId, pointItems);
             }
             else
             {
-                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointItems.Count);
+                insertCount = isForceInsert ?
+                    points.Count - offset :
+                    Math.Min(points.Count - offset, this.MaxNodePoints - pointItems.Count);
             }
 
             pointItems.AddRange(points, offset, insertCount);
@@ -153,15 +160,15 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             var points = this.parent.nodePoints[nodeId];
             var toPoints = new ExpandableArray<PointItem<TValue>>[toBounds.Length];
 
-            await Task.WhenAll(
-                Enumerable.Range(0, toPoints.Length).
-                Select(index => Task.Run(() =>
+            Parallel.For(
+                0, toPoints.Length,
+                index =>
                 {
                     var toPointList = new ExpandableArray<PointItem<TValue>>();
-                    toPoints[index] = toPointList;
                     var toBound = toBounds[index];
                     toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Point));
-                })));
+                    toPoints[index] = toPointList;
+                });
 
             Debug.Assert(toPoints.Sum(pointItems => pointItems.Count) == points.Count);
 
@@ -219,7 +226,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             }
         }
 
-        public async ValueTask<RemoveResults> RemovePointsAsync(
+        public async ValueTask<RemoveResults> RemovePointAsync(
             int nodeId, Point point, bool _, CancellationToken ct)
         {
             var points = this.parent.nodePoints[nodeId];

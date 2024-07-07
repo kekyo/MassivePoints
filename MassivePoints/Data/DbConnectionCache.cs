@@ -91,7 +91,7 @@ public sealed class DbConnectionCache : IAsyncDisposable
     }
 
     /// <summary>
-    /// All reserved command will be destroyed, transaction will be commit when state is running.
+    /// All reserved command will be destroyed and cleaned up, transaction will be commit when state is running.
     /// </summary>
     public async ValueTask CommitAsync()
     {

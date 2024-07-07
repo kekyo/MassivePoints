@@ -452,7 +452,7 @@ public sealed class QuadTreeTests_SQLite
     [TestCase(10000, 256, false, 2)]
     [TestCase(1000, 256, true, 3)]
     [TestCase(10000, 256, false, 3)]
-    public async Task RemovePointsSqlite(long count, int maxNodePoints, bool performShrinking, int dimension)
+    public async Task RemovePointSqlite(long count, int maxNodePoints, bool performShrinking, int dimension)
     {
         var provider = QuadTree.Factory.CreateProvider<long>(() =>
             CreateSQLiteConnection($"remove_points_{count}_{dimension}{(performShrinking ? "_shr" : "")}"),
@@ -484,7 +484,7 @@ public sealed class QuadTreeTests_SQLite
 
             foreach (var entry in points)
             {
-                var removed = await session.RemovePointsAsync(entry.Key, performShrinking);
+                var removed = await session.RemovePointAsync(entry.Key, performShrinking);
                 Assert.That(removed, Is.EqualTo(entry.Value.Count));
             }
 

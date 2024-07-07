@@ -21,10 +21,15 @@ namespace MassivePoints;
 public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
 {
     /// <summary>
+    /// Flush partially data.
+    /// </summary>
+    ValueTask FlushAsync();
+
+    /// <summary>
     /// Finish the session.
     /// </summary>
     ValueTask FinishAsync();
-
+    
     /// <summary>
     /// Insert a coordinate point.
     /// </summary>
@@ -62,7 +67,7 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    ValueTask<int> RemovePointsAsync(
+    ValueTask<int> RemovePointAsync(
         Point point, bool performShrinking = false, CancellationToken ct = default);
     
     /// <summary>

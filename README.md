@@ -16,10 +16,10 @@
 
 ## What is this?
 
-Have you ever tried to store a large amount of 2D coordinate points and extract these from any given coordinate range?
+Have you ever tried to store a large amount of 2D/3D coordinate points and extract these from any given coordinate range?
 Normally for such requests, we would use a GIS-compatible database system or service with complex management.
 
-This library provides the ability to store and filter ranges of 2D coordinate points in the portable way.
+This library provides the ability to store and filter ranges of multi-dimensional coordinate points in the portable way.
 
 It's very easy to use:
 
@@ -61,13 +61,19 @@ foreach (PointItem<string> entry in
 
 It has the following features:
 
-* Implements QuadTree coordinate search algorithm.
+* Implements modified QuadTree coordinate search algorithm.
+  * This algorithm stores multiple coordinate points as a linear list for each node in QuadTree.
+  * A pure QuadTree has the problem of deeper node nesting, but with this method the nodes do not become deeply nested until they are filled.
+  * Searching within a node is `O(n)`, but the CPU cache works absolutely faster in the in-memory data provider,
+    and it is possible to speed up the process by using clever indexing on the database backend (of course, there are trade-offs).
 * Included add a coordinate point, lookup and remove features.
 * Supported multi-dimensional coordinate points.
   * By extending it to N-dimensions, you will be using a naturally extended algorithm,
     such as BinaryTree, QuadTree, OctaTree and more.
 * Completely separates between QuadTree controller and data provider.
   * Builtin data providers: In-memory and ADO.NET.
+  * Using the SQLite ADO.NET provider (Microsoft.Data.Sqlite),
+    it is possible to perform bulk inserts of 170,000 2D coordinate points per second in my environment.
 * Fully asynchronous operation.
 * Supported asynchronous streaming lookup (`IAsyncEnumerable<T>`).
 
@@ -85,6 +91,8 @@ It has the following features:
 Install [MassivePoints](https://www.nuget.org/packages/MassivePoints) from NuGet.
 
 ### Create in-memory QuadTree
+
+You can use the factory to easy to use QuadTree:
 
 ```csharp
 using MassivePoints;
@@ -111,7 +119,6 @@ However, please remember that you can use various overloads to express N-dimensi
 ### Create QuadTree with ADO.NET provider
 
 This sample code uses SQLite ADO.NET provider: [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
-
 
 ```csharp
 using MassivePoints;
@@ -273,13 +280,13 @@ However, be aware that its performance is not as good as that of `LookupBoundAsy
 
 ### Remove coordinate points
 
-With exact coordinate point by `RemovePointsAsync()`:
+With exact coordinate point by `RemovePointAsync()`:
 
 ```csharp
 // Remove exact coordinate point.
 Point targetPoint = new Point(31234.0, 45678.0);
 
-long removed = await session.RemovePointsAsync(targetPoint);
+long removed = await session.RemovePointAsync(targetPoint);
 ```
 
 With coordinate range by `RemoveBoundAsync()`:
@@ -311,6 +318,27 @@ long removed = await session.RemoveBoundAsync(
 
 TODO:
 
+MassivePoints provides a `provider.CreateSQLiteTablesAsync()` method that makes it easy to create tables for SQLite.
+
+* [`CreateSQLiteTablesAsync()`](MassivePoints/Data/DbDataProviderExtension.cs)
+
+Unfortunately, there is no way to define table definitions in a platform-neutral way in .NET, so this method is only for SQLite.
+However, it can be used with different database systems by manually defining tables similar to the following schema.
+
+Only the following two tables are required:
+
+#### Node table
+
+TODO:
+
+![](Images/dbschema1.png)
+
+#### Node-point table
+
+TODO:
+
+![](Images/dbschema2.png)
+
 
 ----
 
@@ -326,6 +354,13 @@ Apache-v2
 
 ## History
 
+* 0.11.0:
+  * Added flush method.
+  * Improved bulk insertion when the node already dense points.
+  * Improved parallel distribution works.
+  * Fixed infinite recursive calls when bulk insert count exceeds ceiling.
+  * Distribution is not performed when coordinate points are inserted in excess of MaxNodePoints.
+  * Added OpenStreetMap pbf insertion sample ([in the samples directory](samples/ImportOsmNode))
 * 0.10.0:
   * Split session interface between updatable and readable.
   * Supported multi-dimensional coordinate points.
