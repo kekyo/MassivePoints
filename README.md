@@ -61,7 +61,11 @@ foreach (PointItem<string> entry in
 
 It has the following features:
 
-* Implements QuadTree coordinate search algorithm.
+* Implements modified QuadTree coordinate search algorithm.
+  * This algorithm stores multiple coordinate points as a linear list for each node in QuadTree.
+  * A pure QuadTree has the problem of deeper node nesting, but with this method the nodes do not become deeply nested until they are filled.
+  * Searching within a node is `O(n)`, but the CPU cache works absolutely faster in the in-memory data provider,
+    and it is possible to speed up the process by using clever indexing on the database backend (of course, there are trade-offs).
 * Included add a coordinate point, lookup and remove features.
 * Supported multi-dimensional coordinate points.
   * By extending it to N-dimensions, you will be using a naturally extended algorithm,
@@ -314,6 +318,27 @@ long removed = await session.RemoveBoundAsync(
 
 TODO:
 
+MassivePoints provides a `provider.CreateSQLiteTablesAsync()` method that makes it easy to create tables for SQLite.
+
+* [`CreateSQLiteTablesAsync()`](MassivePoints/Data/DbDataProviderExtension.cs)
+
+Unfortunately, there is no way to define table definitions in a platform-neutral way in .NET, so this method is only for SQLite.
+However, it can be used with different database systems by manually defining tables similar to the following schema.
+
+Only the following two tables are required:
+
+#### Node table
+
+TODO:
+
+![](Images/dbschema1.png)
+
+#### Node-point table
+
+TODO:
+
+![](Images/dbschema2.png)
+
 
 ----
 
@@ -334,6 +359,7 @@ Apache-v2
   * Improved bulk insertion when the node already dense points.
   * Improved parallel distribution works.
   * Fixed infinite recursive calls when bulk insert count exceeds ceiling.
+  * Distribution is not performed when coordinate points are inserted in excess of MaxNodePoints.
   * Added OpenStreetMap pbf insertion sample ([in the samples directory](samples/ImportOsmNode))
 * 0.10.0:
   * Split session interface between updatable and readable.
