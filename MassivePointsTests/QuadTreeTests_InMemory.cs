@@ -358,7 +358,7 @@ public sealed class QuadTreeTests_InMemory
     [TestCase(100000, 1024, false, 2)]
     [TestCase(100000, 256, true, 3)]
     [TestCase(100000, 256, false, 3)]
-    public async Task RemovePointsCollection(long count, int maxNodePoints, bool performShrinking, int dimension)
+    public async Task RemovePointCollection(long count, int maxNodePoints, bool performShrinking, int dimension)
     {
         var quadTree = QuadTree.Factory.Create<long>(
             GetEntireBound(dimension), maxNodePoints);
@@ -383,7 +383,7 @@ public sealed class QuadTreeTests_InMemory
 
             foreach (var entry in allPoints)
             {
-                var removed = await session.RemovePointsAsync(entry.Key, performShrinking);
+                var removed = await session.RemovePointAsync(entry.Key, performShrinking);
                 Assert.That(removed, Is.EqualTo(entry.Value.Count));
             }
         }

@@ -190,6 +190,24 @@ public readonly struct Bound : IEquatable<Bound>
     public double Depth =>
         this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
 
+    /// <summary>
+    /// Is size valid.
+    /// </summary>
+    public bool IsValidSize
+    {
+        get
+        {
+            foreach (var axis in this.Axes)
+            {
+                if (!axis.IsValidSize)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
     public bool Equals(Bound other)
     {
         if (this.Axes.Length != other.Axes.Length)

@@ -67,7 +67,7 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    ValueTask<int> RemovePointsAsync(
+    ValueTask<int> RemovePointAsync(
         Point point, bool performShrinking = false, CancellationToken ct = default);
     
     /// <summary>

@@ -120,19 +120,23 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             new(this.parent.nodePoints.TryGetValue(nodeId, out var points) ? points.Count : 0);
 
         public ValueTask<int> InsertPointsAsync(
-            int nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
+            int nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct)
         {
             int insertCount;
 
             if (!this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
             {
-                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints);
+                insertCount = isForceInsert ?
+                    points.Count - offset :
+                    Math.Min(points.Count - offset, this.MaxNodePoints);
                 pointItems = new(insertCount);
                 this.parent.nodePoints.Add(nodeId, pointItems);
             }
             else
             {
-                insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointItems.Count);
+                insertCount = isForceInsert ?
+                    points.Count - offset :
+                    Math.Min(points.Count - offset, this.MaxNodePoints - pointItems.Count);
             }
 
             pointItems.AddRange(points, offset, insertCount);
@@ -222,7 +226,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             }
         }
 
-        public async ValueTask<RemoveResults> RemovePointsAsync(
+        public async ValueTask<RemoveResults> RemovePointAsync(
             int nodeId, Point point, bool _, CancellationToken ct)
         {
             var points = this.parent.nodePoints[nodeId];

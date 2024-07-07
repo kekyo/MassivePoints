@@ -8,7 +8,6 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System;
-using System.Linq;
 
 namespace MassivePoints;
 
@@ -17,6 +16,23 @@ namespace MassivePoints;
 /// </summary>
 public readonly struct Axis : IEquatable<Axis>
 {
+    /// <summary>
+    /// Minimum valid size.
+    /// </summary>
+    public static readonly double MinSize;
+
+    static Axis()
+    {
+        // Calculate machine epsilon
+        var epsilon = 1.0;
+        while (1.0 + epsilon / 2.0 != 1.0)
+        {
+            epsilon /= 2.0;
+        }
+
+        MinSize = epsilon * 2;
+    }
+    
     /// <summary>
     /// Axis origin point.
     /// </summary>
@@ -37,6 +53,12 @@ public readonly struct Axis : IEquatable<Axis>
         this.Origin = origin;
         this.Size = size;
     }
+
+    /// <summary>
+    /// Is size valid.
+    /// </summary>
+    public bool IsValidSize =>
+        this.Size >= MinSize;
 
     public bool Equals(Axis other) =>
         this.Origin == other.Origin &&

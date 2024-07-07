@@ -276,13 +276,13 @@ However, be aware that its performance is not as good as that of `LookupBoundAsy
 
 ### Remove coordinate points
 
-With exact coordinate point by `RemovePointsAsync()`:
+With exact coordinate point by `RemovePointAsync()`:
 
 ```csharp
 // Remove exact coordinate point.
 Point targetPoint = new Point(31234.0, 45678.0);
 
-long removed = await session.RemovePointsAsync(targetPoint);
+long removed = await session.RemovePointAsync(targetPoint);
 ```
 
 With coordinate range by `RemoveBoundAsync()`:

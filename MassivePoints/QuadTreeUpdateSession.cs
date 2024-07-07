@@ -70,7 +70,11 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             var inserted = await this.providerSession.InsertPointsAsync(
-                nodeId, new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]), 0, ct);
+                nodeId,
+                new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]),
+                0,
+                !nodeBound.IsValidSize,
+                ct);
             if (inserted >= 1)
             {
                 return depth;
@@ -130,7 +134,11 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             var inserted = await this.providerSession.InsertPointsAsync(
-                nodeId, points, offset, ct);
+                nodeId,
+                points,
+                offset,
+                !nodeBound.IsValidSize,
+                ct);
             offset += inserted;
             if (offset >= points.Count)
             {
@@ -339,7 +347,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         return remainsHint;
     }
     
-    private async ValueTask<RemoveResults> RemovePointsAsync(
+    private async ValueTask<RemoveResults> RemovePointAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -348,7 +356,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     {
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
-            return await this.providerSession.RemovePointsAsync(
+            return await this.providerSession.RemovePointAsync(
                 nodeId, targetPoint, performShrinking, ct);
         }
 
@@ -366,7 +374,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 var childBound = childBounds[index];
                 if (childBound.IsWithin(targetPoint))
                 {
-                    var (rmd, rms) = await this.RemovePointsAsync(
+                    var (rmd, rms) = await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
                     removed += rmd;
                     remainsHint += rms;
@@ -397,7 +405,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 var childBound = childBounds[index];
                 if (childBound.IsWithin(targetPoint))
                 {
-                    return await this.RemovePointsAsync(
+                    return await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
                 }
             }
@@ -412,10 +420,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    public async ValueTask<int> RemovePointsAsync(
+    public async ValueTask<int> RemovePointAsync(
         Point point, bool performShrinking = false, CancellationToken ct = default)
     {
-        var (removed, _) = await this.RemovePointsAsync(
+        var (removed, _) = await this.RemovePointAsync(
             this.providerSession.RootId, this.providerSession.Entire, point, performShrinking, ct);
         Debug.Assert(removed <= int.MaxValue);
         return (int)removed;

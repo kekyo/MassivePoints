@@ -93,10 +93,11 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     /// <param name="nodeId">Node ID</param>
     /// <param name="points">Coordinate points</param>
     /// <param name="offset">Coordinate point list offset</param>
+    /// <param name="isForceInsert">Force insert all points</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Inserted points</returns>
     ValueTask<int> InsertPointsAsync(
-        TNodeId nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct);
+        TNodeId nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct);
 
     ValueTask<QuadTreeNode<TNodeId>> DistributePointsAsync(
         TNodeId nodeId, Bound[] toBounds, CancellationToken ct);
@@ -113,7 +114,7 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         TNodeId nodeId, Bound targetBound, CancellationToken ct);
 
-    ValueTask<RemoveResults> RemovePointsAsync(
+    ValueTask<RemoveResults> RemovePointAsync(
         TNodeId nodeId, Point point, bool includeRemains, CancellationToken ct);
 
     ValueTask<RemoveResults> RemoveBoundAsync(

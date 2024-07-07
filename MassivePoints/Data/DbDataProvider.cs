@@ -318,11 +318,12 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         /// <param name="nodeId">Node ID</param>
         /// <param name="points">Coordinate points</param>
         /// <param name="offset">Coordinate point list offset</param>
+        /// <param name="isForceInsert">Force insert all points</param>
         /// <param name="ct">`CancellationToken`</param>
         /// <returns>Inserted points</returns>
         /// <remarks>You can override this method to provide your own bulk insertion.</remarks>
         public virtual async ValueTask<int> InsertPointsAsync(
-            long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, CancellationToken ct)
+            long nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct)
         {
             using var selectCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointCountQuery, ct);
@@ -330,7 +331,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 record => record.GetInt32(0),
                 ct, nodeId);
 
-            var insertCount = Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
+            var insertCount = isForceInsert ?
+                points.Count - offset :
+                Math.Min(points.Count - offset, this.MaxNodePoints - pointCount);
             if (insertCount <= 0)
             {
                 return 0;
@@ -590,7 +593,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
-        public async ValueTask<RemoveResults> RemovePointsAsync(
+        public async ValueTask<RemoveResults> RemovePointAsync(
             long nodeId, Point point, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
