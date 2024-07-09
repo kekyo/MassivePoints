@@ -99,7 +99,12 @@ public static class Program
         }.ToString();
 
         var quadTreeProvider = QuadTree.Factory.CreateProvider<long>(
-            () => new SQLiteConnection(connectionString),
+            async ct =>
+            {
+                var connection = new SQLiteConnection(connectionString);
+                await connection.OpenAsync(ct);
+                return connection;
+            },
             new DbDataProviderConfiguration(Bound.TheGlobe2D, maxNodePoints));
 #else
         var connectionString = new SqliteConnectionStringBuilder
@@ -110,7 +115,15 @@ public static class Program
         }.ToString();
 
         var quadTreeProvider = QuadTree.Factory.CreateProvider<long>(
-            () => new SqliteConnection(connectionString),
+            async ct =>
+            {
+                var connection = new SqliteConnection(connectionString);
+                await connection.OpenAsync(ct);
+                
+                // Set journal mode to MEMORY.
+                await connection.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, ct);
+                return connection;
+            },
             new DbDataProviderConfiguration(Bound.TheGlobe2D, maxNodePoints));
 #endif
 

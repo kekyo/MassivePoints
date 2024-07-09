@@ -12,6 +12,8 @@ using MassivePoints.DataProvider;
 using MassivePoints.InMemory;
 using System;
 using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
 
 // Parameter has no matching param tag in the XML comment (but other parameters do)
 #pragma warning disable CS1573
@@ -51,9 +53,10 @@ public static class QuadTreeFactoryExtension
     /// <param name="connectionFactory">Database connection factory</param>
     /// <param name="configuration">Database configuration</param>
     /// <returns>Data provider</returns>
+    /// <remarks>The connection instance returned by the connection factory must be open.</remarks>
     public static DbDataProvider<TValue> CreateProvider<TValue>(
         this QuadTreeFactory _,
-        Func<DbConnection> connectionFactory,
+        Func<CancellationToken, ValueTask<DbConnection>> connectionFactory,
         DbDataProviderConfiguration configuration) =>
         new(connectionFactory, configuration);
 

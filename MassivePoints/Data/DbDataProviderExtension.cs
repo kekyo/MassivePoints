@@ -9,6 +9,7 @@
 
 using System;
 using System.Data;
+using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -175,6 +176,47 @@ public static class DbDataProviderExtension
                 {
                     throw new InvalidOperationException();
                 }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Set SQLite journal mode.
+    /// </summary>
+    /// <param name="connection">ADO.NET database connection</param>
+    /// <param name="journalMode">Journal mode</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <remarks>If you are using a SQLite provider other than `System.Data.SQLite`, this method may be useful to set the journal mode.
+    /// If you are using `System.Data.SQLite`, you can specify it using a connection string.</remarks>
+    /// <example>
+    /// <code>
+    /// // Create QuadTree database provider.
+    /// var quadTreeProvider = QuadTree.Factory.CreateProvider<long>(
+    ///     async ct =>
+    ///     {
+    ///         var connection = new SqliteConnection(connectionString);
+    ///         await connection.OpenAsync(ct);
+    ///             
+    ///         // Set journal mode to MEMORY.
+    ///         await connection.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, ct);
+    ///         return connection;
+    ///     },
+    ///     new DbDataProviderConfiguration(Bound.TheGlobe2D, maxNodePoints));
+    /// </code>
+    /// </example>
+    public static async ValueTask SetSQLiteJournalModeAsync(
+        this DbConnection connection,
+        SQLiteJournalModes journalMode,
+        CancellationToken ct = default)
+    {
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandType = CommandType.Text;
+            command.CommandText =
+                $"PRAGMA journal_mode={journalMode.ToString().ToUpperInvariant()}";
+            if (await command.ExecuteNonQueryAsync(ct) < 0)
+            {
+                throw new InvalidOperationException();
             }
         }
     }

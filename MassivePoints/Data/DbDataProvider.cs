@@ -169,7 +169,7 @@ public sealed class DbDataProviderConfiguration
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
 public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
-    private readonly Func<DbConnection> connectionFactory;
+    private readonly Func<CancellationToken, ValueTask<DbConnection>> connectionFactory;
     private readonly DbDataProviderConfiguration configuration;
 
     /// <summary>
@@ -177,8 +177,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
     /// </summary>
     /// <param name="connectionFactory">`DbConnection` factory</param>
     /// <param name="configuration">Database configuration</param>
+    /// <remarks>The connection instance returned by the connection factory must be open.</remarks>
     public DbDataProvider(
-        Func<DbConnection> connectionFactory,
+        Func<CancellationToken, ValueTask<DbConnection>> connectionFactory,
         DbDataProviderConfiguration configuration)
     {
         this.connectionFactory = connectionFactory;
@@ -189,21 +190,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         this.configuration;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public async ValueTask<DbConnection> OpenTemporaryConnectionAsync(
-        CancellationToken ct)
-    {
-        var connection = this.connectionFactory();
-        try
-        {
-            await connection.OpenAsync(ct);
-        }
-        catch
-        {
-            connection.Dispose();
-            throw;
-        }
-        return connection;
-    }
+    public ValueTask<DbConnection> OpenTemporaryConnectionAsync(
+        CancellationToken ct) =>
+        this.connectionFactory(ct);
 
     /// <summary>
     /// Create DataProviderSession instance.
