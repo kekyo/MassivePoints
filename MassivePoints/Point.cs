@@ -24,19 +24,19 @@ public readonly struct Point : IEquatable<Point>
     /// <summary>
     /// Constructor.
     /// </summary>
-    /// <param name="x">X coordinate point.</param>
-    /// <param name="y">Y coordinate point.</param>
-    /// <remarks>This constructor will create 2D point.</remarks>
+    /// <param name="x">X axis point</param>
+    /// <param name="y">Y axis point</param>
+    /// <remarks>This constructor will create 2D coordinate point.</remarks>
     public Point(double x, double y) =>
         this.Elements = [x, y];
 
     /// <summary>
     /// Constructor.
     /// </summary>
-    /// <param name="x">X coordinate point.</param>
-    /// <param name="y">Y coordinate point.</param>
-    /// <param name="z">Z coordinate point.</param>
-    /// <remarks>This constructor will create 3D point.</remarks>
+    /// <param name="x">X axis point</param>
+    /// <param name="y">Y axis point</param>
+    /// <param name="z">Z axis point</param>
+    /// <remarks>This constructor will create 3D coordinate point.</remarks>
     public Point(double x, double y, double z) =>
         this.Elements = [x, y, z];
 
@@ -53,6 +53,9 @@ public readonly struct Point : IEquatable<Point>
     public double X =>
         this.Elements[0];
     
+    /// <summary>
+    /// X point.
+    /// </summary>
     public double Y =>
         this.Elements[1];
 
@@ -97,9 +100,22 @@ public readonly struct Point : IEquatable<Point>
     public static implicit operator Point((double x, double y, double z) point) =>
         new Point(point.x, point.y, point.z);
 
+    /// <summary>
+    /// Create a 2D coordinate point.
+    /// </summary>
+    /// <param name="x">X axis point</param>
+    /// <param name="y">Y axis point</param>
+    /// <remarks>This constructor will create 2D point.</remarks>
     public static Point Create(double x, double y) =>
         new Point(x, y);
 
+    /// <summary>
+    /// Create a 3D coordinate point.
+    /// </summary>
+    /// <param name="x">X axis point</param>
+    /// <param name="y">Y axis point</param>
+    /// <param name="z">Z axis point</param>
+    /// <remarks>This constructor will create 3D point.</remarks>
     public static Point Create(double x, double y, double z) =>
         new Point(x, y, z);
 }

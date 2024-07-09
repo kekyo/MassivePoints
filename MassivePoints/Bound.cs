@@ -85,7 +85,7 @@ public readonly struct Bound : IEquatable<Bound>
     /// Constructor.
     /// </summary>
     /// <param name="origin">Origin point</param>
-    /// <param name="to">To point</param>
+    /// <param name="to">To point (exclusive)</param>
     /// <remarks>This constructor will create rectangle range between two points.</remarks>
     public Bound(Point origin, Point to)
     {
@@ -146,54 +146,63 @@ public readonly struct Bound : IEquatable<Bound>
     /// <summary>
     /// X axis origin.
     /// </summary>
+    /// <remarks>This property works when the dimension is one or more.</remarks>
     public double X0 =>
         this.Axes is [var x,..] ? x.Origin : double.NaN;
     
     /// <summary>
     /// Y axis origin.
     /// </summary>
+    /// <remarks>This property works when the dimension is two or more.</remarks>
     public double Y0 =>
         this.Axes is [_,var y,..] ? y.Origin : double.NaN;
     
     /// <summary>
     /// Z axis origin.
     /// </summary>
+    /// <remarks>This property works when the dimension is three or more.</remarks>
     public double Z0 =>
         this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
 
     /// <summary>
     /// X axis to (exclusive).
     /// </summary>
+    /// <remarks>This property works when the dimension is one or more.</remarks>
     public double X1 =>
         this.Axes is [var x,..] ? x.To : double.NaN;
     
     /// <summary>
     /// Y axis to (exclusive).
     /// </summary>
+    /// <remarks>This property works when the dimension is two or more.</remarks>
     public double Y1 =>
         this.Axes is [_,var y,..] ? y.To : double.NaN;
     
     /// <summary>
     /// Z axis to (exclusive).
     /// </summary>
+    /// <remarks>This property works when the dimension is three or more.</remarks>
     public double Z1 =>
         this.Axes is [_,_,var z,..] ? z.To : double.NaN;
 
     /// <summary>
     /// Range width (hint).
     /// </summary>
+    /// <remarks>This property works when the dimension is one or more.</remarks>
     public double WidthHint =>
         this.Axes is [var x,..] ? x.SizeHint : double.NaN;
 
     /// <summary>
     /// Range height (hint).
     /// </summary>
+    /// <remarks>This property works when the dimension is two or more.</remarks>
     public double HeightHint =>
         this.Axes is [_,var y,..] ? y.SizeHint : double.NaN;
 
     /// <summary>
     /// Range depth (hint).
     /// </summary>
+    /// <remarks>This property works when the dimension is three or more.</remarks>
     public double DepthHint =>
         this.Axes is [_,_,var z,..] ? z.SizeHint : double.NaN;
 
@@ -269,18 +278,55 @@ public readonly struct Bound : IEquatable<Bound>
     public static implicit operator Bound((double x0, double y0, double z0, double x1, double y1, double z1) bound) =>
         new Bound(bound.x0, bound.y0, bound.z0, bound.x1, bound.y1, bound.z1);
 
-    public static Bound Create(double width, double height) =>
-        new Bound(width, height);
-
+    /// <summary>
+    /// Create coordinate range.
+    /// </summary>
+    /// <param name="origin">Origin point</param>
+    /// <param name="to">To point (exclusive)</param>
+    /// <returns>Bound</returns>
     public static Bound Create(Point origin, Point to) =>
         new Bound(origin, to);
 
+    /// <summary>
+    /// Create 2D coordinate range.
+    /// </summary>
+    /// <param name="width">X axis width</param>
+    /// <param name="height">Y axis height</param>
+    /// <returns>Bound</returns>
+    public static Bound Create(double width, double height) =>
+        new Bound(width, height);
+
+    /// <summary>
+    /// Create 2D coordinate range.
+    /// </summary>
+    /// <param name="x0">X origin point</param>
+    /// <param name="y0">Y origin point</param>
+    /// <param name="x1">X to point (exclusive)</param>
+    /// <param name="y1">Y to point (exclusive)</param>
+    /// <returns>Bound</returns>
     public static Bound Create(double x0, double y0, double x1, double y1) =>
         new Bound(x0, y0, x1, y1);
 
+    /// <summary>
+    /// Create 3D coordinate range.
+    /// </summary>
+    /// <param name="width">X axis width</param>
+    /// <param name="height">Y axis height</param>
+    /// <param name="depth">Z axis height</param>
+    /// <returns>Bound</returns>
     public static Bound Create(double width, double height, double depth) =>
         new Bound(width, height, depth);
 
+    /// <summary>
+    /// Create 3D coordinate range.
+    /// </summary>
+    /// <param name="x0">X origin point</param>
+    /// <param name="y0">Y origin point</param>
+    /// <param name="z0">Z origin point</param>
+    /// <param name="x1">X to point (exclusive)</param>
+    /// <param name="y1">Y to point (exclusive)</param>
+    /// <param name="z1">Z to point (exclusive)</param>
+    /// <returns>Bound</returns>
     public static Bound Create(double x0, double y0, double z0, double x1, double y1, double z1) =>
         new Bound(x0, y0, z0, x1, y1, z1);
 }
