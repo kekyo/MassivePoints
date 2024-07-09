@@ -63,8 +63,9 @@ public readonly struct Bound : IEquatable<Bound>
     /// <summary>
     /// The earth globe (2D) bound.
     /// </summary>
+    /// <remarks>[-180.0,-90.0 - 180.0,90.0)</remarks>
     public static readonly Bound TheGlobe2D =
-        new(0.0, -90.0, 360.0, 180);
+        new(-180.0, -90.0, 360.0, 180.0);
 
     /// <summary>
     /// The axis definitions.
