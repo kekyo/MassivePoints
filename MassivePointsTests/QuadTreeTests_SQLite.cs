@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using MassivePoints.Data;
-using Microsoft.Data.Sqlite;
+//using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;

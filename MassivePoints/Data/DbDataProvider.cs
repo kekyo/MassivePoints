@@ -354,7 +354,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     args[1 + index2] = elements[index2];
                 }
                 args[^1] = (object?)pointItem.Value ?? DBNull.Value;
-                
+
                 if (await insertCommand.ExecuteNonQueryAsync(
                     ct, args) != 1)
                 {
