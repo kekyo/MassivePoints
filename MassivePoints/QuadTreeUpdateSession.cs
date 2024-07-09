@@ -73,7 +73,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 nodeId,
                 new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]),
                 0,
-                !nodeBound.IsValidSize,
+                nodeBound.IsEmpty,
                 ct);
             if (inserted >= 1)
             {
@@ -137,7 +137,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 nodeId,
                 points,
                 offset,
-                !nodeBound.IsValidSize,
+                nodeBound.IsEmpty,
                 ct);
             offset += inserted;
             if (offset >= points.Count)

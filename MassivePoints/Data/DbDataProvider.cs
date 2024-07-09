@@ -378,7 +378,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             {
                 var axis = bound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
-                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+                args[1 + index * 2 + 1] = axis.To;
             }
             args[^1] = toNodeId;
 
@@ -540,7 +540,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             {
                 var axis = targetBound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
-                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+                args[1 + index * 2 + 1] = axis.To;
             }
 
             var results = new List<PointItem<TValue>>();
@@ -572,7 +572,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             {
                 var axis = targetBound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
-                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+                args[1 + index * 2 + 1] = axis.To;
             }
 
             await foreach (var result in command.ExecuteEnumerateAsync(
@@ -644,7 +644,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             {
                 var axis = bound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
-                args[1 + index * 2 + 1] = axis.Origin + axis.Size;
+                args[1 + index * 2 + 1] = axis.To;
             }
 
             var removed = await deleteCommand.ExecuteNonQueryAsync(

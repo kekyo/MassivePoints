@@ -24,43 +24,40 @@ public static class BoundExtension
     public static void Deconstruct(
         this Bound self,
         out Point origin,
-        out double width,
-        out double height)
+        out Point to)
     {
         if (self.Axes is [var x, var y])
         {
             origin = new(x.Origin, y.Origin);
-            width = x.Size;
-            height = x.Size;
+            to = new(x.To, y.To);
         }
         else
         {
             origin = new(double.NaN, double.NaN);
-            width = double.NaN;
-            height = double.NaN;
+            to = new(double.NaN, double.NaN);
         }
     }
 
     public static void Deconstruct(
         this Bound self,
-        out double x,
-        out double y,
-        out double width,
-        out double height)
+        out double x0,
+        out double y0,
+        out double x1,
+        out double y1)
     {
         if (self.Axes is [var sx, var sy])
         {
-            x = sx.Origin;
-            y = sy.Origin;
-            width = sx.Size;
-            height = sy.Size;
+            x0 = sx.Origin;
+            y0 = sy.Origin;
+            x1 = sx.To;
+            y1 = sy.To;
         }
         else
         {
-            x = double.NaN;
-            y = double.NaN;
-            width = double.NaN;
-            height = double.NaN;
+            x0 = double.NaN;
+            y0 = double.NaN;
+            x1 = double.NaN;
+            y1 = double.NaN;
         }
     }
 
@@ -96,18 +93,20 @@ public static class BoundExtension
             
             for (var axisIndex = 0; axisIndex < axes.Length; axisIndex++, halfBits >>= 1)
             {
-                var halfSize = self.Axes[axisIndex].Size / 2;
+                var axis = self.Axes[axisIndex];
+                var halfSizeHint = axis.SizeHint / 2;
+                var halfOrigin = axis.Origin + halfSizeHint;
                 if ((halfBits & 0x01) == 0x01)
                 {
                     axes[axisIndex] = new Axis(
-                        self.Axes[axisIndex].Origin + halfSize,
-                        halfSize);
+                        halfOrigin,
+                        axis.To);
                 }
                 else
                 {
                     axes[axisIndex] = new Axis(
-                        self.Axes[axisIndex].Origin,
-                        halfSize);
+                        axis.Origin,
+                        halfOrigin);
                 }
             }
             
@@ -136,7 +135,7 @@ public static class BoundExtension
             var l = self.Axes[index];
             var r = point.Elements[index];
             
-            if (!(l.Origin <= r && r < (l.Origin + l.Size)))
+            if (!(l.Origin <= r && r < l.To))
             {
                 return false;
             }
@@ -146,7 +145,7 @@ public static class BoundExtension
     }
 
     /// <summary>
-    /// Checks whether the specified coordinate point is within this range.
+    /// Checks whether the specified 2D coordinate point is within this range.
     /// </summary>
     /// <param name="self">`Bound`</param>
     /// <param name="x">X</param>
@@ -155,6 +154,18 @@ public static class BoundExtension
     public static bool IsWithin(
         this Bound self, double x, double y) =>
         IsWithin(self, new Point(x, y));
+
+    /// <summary>
+    /// Checks whether the specified 3D coordinate point is within this range.
+    /// </summary>
+    /// <param name="self">`Bound`</param>
+    /// <param name="x">X</param>
+    /// <param name="y">Y</param>
+    /// <param name="z">Z</param>
+    /// <returns>True is within.</returns>
+    public static bool IsWithin(
+        this Bound self, double x, double y, double z) =>
+        IsWithin(self, new Point(x, y, z));
 
     /// <summary>
     /// Checks whether the specified range is intersects this range.
@@ -175,8 +186,7 @@ public static class BoundExtension
             var l = self.Axes[index];
             var r = bound.Axes[index];
             
-            if (l.Origin > (r.Origin + r.Size) ||
-                r.Origin > (l.Origin + l.Size))
+            if (l.Origin > r.To || r.Origin > l.To)
             {
                 return false;
             }

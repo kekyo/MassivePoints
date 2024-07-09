@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -84,28 +84,33 @@ public readonly struct Bound : IEquatable<Bound>
     /// Constructor.
     /// </summary>
     /// <param name="origin">Origin point</param>
-    /// <param name="width">Range width</param>
-    /// <param name="height">Range height</param>
-    /// <remarks>This constructor will create 2D range.</remarks>
-    public Bound(Point origin, double width, double height)
+    /// <param name="to">To point</param>
+    /// <remarks>This constructor will create rectangle range between two points.</remarks>
+    public Bound(Point origin, Point to)
     {
-        if (origin.Elements is not [var x, var y])
+        if (origin.Elements.Length != to.Elements.Length)
         {
-            throw new ArgumentException($"Could not create non 2D range: {origin.Elements.Length}");
+            throw new ArgumentException(
+                $"Dimensions does not match: {origin.Elements.Length} != {to.Elements.Length}");
         }
-        this.Axes = [new Axis(x, width), new Axis(y, height)];
+        var axes = new Axis[origin.Elements.Length];
+        for (var index = 0; index < origin.Elements.Length; index++)
+        {
+            axes[index] = new(origin.Elements[index], to.Elements[index]);
+        }
+        this.Axes = axes;
     }
 
     /// <summary>
     /// Constructor.
     /// </summary>
-    /// <param name="x">Origin X point</param>
-    /// <param name="y">Origin Y point</param>
-    /// <param name="width">Range width</param>
-    /// <param name="height">Range height</param>
+    /// <param name="x0">Origin X point</param>
+    /// <param name="y0">Origin Y point</param>
+    /// <param name="x1">To X point</param>
+    /// <param name="y1">To Y point</param>
     /// <remarks>This constructor will create 2D range.</remarks>
-    public Bound(double x, double y, double width, double height) =>
-        this.Axes = [new Axis(x, width), new Axis(y, height)];
+    public Bound(double x0, double y0, double x1, double y1) =>
+        this.Axes = [new Axis(x0, x1), new Axis(y0, y1)];
 
     /// <summary>
     /// Constructor.
@@ -120,32 +125,15 @@ public readonly struct Bound : IEquatable<Bound>
     /// <summary>
     /// Constructor.
     /// </summary>
-    /// <param name="origin">Origin point</param>
-    /// <param name="width">Range width</param>
-    /// <param name="height">Range height</param>
-    /// <param name="depth">Range depth</param>
+    /// <param name="x0">Origin X point</param>
+    /// <param name="y0">Origin Y point</param>
+    /// <param name="z0">Origin Z point</param>
+    /// <param name="x1">To X point</param>
+    /// <param name="y1">To Y point</param>
+    /// <param name="z1">To Z point</param>
     /// <remarks>This constructor will create 2D range.</remarks>
-    public Bound(Point origin, double width, double height, double depth)
-    {
-        if (origin.Elements is not [var x, var y, var z])
-        {
-            throw new ArgumentException($"Could not create non 3D range: {origin.Elements.Length}");
-        }
-        this.Axes = [new Axis(x, width),new Axis(y, height),new Axis(z, depth)];
-    }
-
-    /// <summary>
-    /// Constructor.
-    /// </summary>
-    /// <param name="x">Origin X point</param>
-    /// <param name="y">Origin Y point</param>
-    /// <param name="z">Origin Z point</param>
-    /// <param name="width">Range width</param>
-    /// <param name="height">Range height</param>
-    /// <param name="depth">Range depth</param>
-    /// <remarks>This constructor will create 2D range.</remarks>
-    public Bound(double x, double y, double z, double width, double height, double depth) =>
-        this.Axes = [new Axis(x, width), new Axis(y, height), new Axis(z, depth)];
+    public Bound(double x0, double y0, double z0, double x1, double y1, double z1) =>
+        this.Axes = [new Axis(x0, x1), new Axis(y0, y1), new Axis(z0, z1)];
 
     /// <summary>
     /// Constructor.
@@ -157,54 +145,73 @@ public readonly struct Bound : IEquatable<Bound>
     /// <summary>
     /// X axis origin.
     /// </summary>
-    public double X =>
+    public double X0 =>
         this.Axes is [var x,..] ? x.Origin : double.NaN;
     
     /// <summary>
     /// Y axis origin.
     /// </summary>
-    public double Y =>
+    public double Y0 =>
         this.Axes is [_,var y,..] ? y.Origin : double.NaN;
     
     /// <summary>
     /// Z axis origin.
     /// </summary>
-    public double Z =>
+    public double Z0 =>
         this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
 
     /// <summary>
-    /// Range width.
+    /// X axis to (exclusive).
     /// </summary>
-    public double Width =>
-        this.Axes is [var x,..] ? x.Size : double.NaN;
+    public double X1 =>
+        this.Axes is [var x,..] ? x.To : double.NaN;
+    
+    /// <summary>
+    /// Y axis to (exclusive).
+    /// </summary>
+    public double Y1 =>
+        this.Axes is [_,var y,..] ? y.To : double.NaN;
+    
+    /// <summary>
+    /// Z axis to (exclusive).
+    /// </summary>
+    public double Z1 =>
+        this.Axes is [_,_,var z,..] ? z.To : double.NaN;
 
     /// <summary>
-    /// Range height.
+    /// Range width (hint).
     /// </summary>
-    public double Height =>
-        this.Axes is [_,var y,..] ? y.Size : double.NaN;
+    public double WidthHint =>
+        this.Axes is [var x,..] ? x.SizeHint : double.NaN;
 
     /// <summary>
-    /// Range depth.
+    /// Range height (hint).
     /// </summary>
-    public double Depth =>
-        this.Axes is [_,_,var z,..] ? z.Size : double.NaN;
+    public double HeightHint =>
+        this.Axes is [_,var y,..] ? y.SizeHint : double.NaN;
 
     /// <summary>
-    /// Is size valid.
+    /// Range depth (hint).
     /// </summary>
-    public bool IsValidSize
+    public double DepthHint =>
+        this.Axes is [_,_,var z,..] ? z.SizeHint : double.NaN;
+
+    /// <summary>
+    /// Is size empty.
+    /// </summary>
+    public bool IsEmpty
     {
         get
         {
             foreach (var axis in this.Axes)
             {
-                if (!axis.IsValidSize)
+                // Be ruined.
+                if (axis.IsEmpty)
                 {
-                    return false;
+                    return true;
                 }
             }
-            return true;
+            return false;
         }
     }
 
@@ -244,41 +251,35 @@ public readonly struct Bound : IEquatable<Bound>
     }
 
     public override string ToString() =>
-        $"Bound: [{string.Join(",", this.Axes.Select(axis => axis.Origin))} - {string.Join(",", this.Axes.Select(axis => axis.Origin + axis.Size))}), Size={string.Join(",", this.Axes.Select(axis => axis.Size))}";
+        $"[{string.Join(",", this.Axes.Select(axis => axis.Origin))} - {string.Join(",", this.Axes.Select(axis => axis.To))}), Size={string.Join(",", this.Axes.Select(axis => axis.SizeHint))}";
 
     public static implicit operator Bound((double width, double height) size) =>
         new Bound(size.width, size.height);
 
-    public static implicit operator Bound((Point point, double width, double height) bound) =>
-        new Bound(bound.point, bound.width, bound.height);
+    public static implicit operator Bound((Point origin, Point to) bound) =>
+        new Bound(bound.origin, bound.to);
 
-    public static implicit operator Bound((double x, double y, double width, double height) bound) =>
-        new Bound(bound.x, bound.y, bound.width, bound.height);
+    public static implicit operator Bound((double x0, double y0, double x1, double y1) bound) =>
+        new Bound(bound.x0, bound.y0, bound.x1, bound.y1);
 
     public static implicit operator Bound((double width, double height, double depth) size) =>
         new Bound(size.width, size.height, size.depth);
 
-    public static implicit operator Bound((Point point, double width, double height, double depth) bound) =>
-        new Bound(bound.point, bound.width, bound.height, bound.depth);
-
-    public static implicit operator Bound((double x, double y, double z, double width, double height, double depth) bound) =>
-        new Bound(bound.x, bound.y, bound.z, bound.width, bound.height, bound.depth);
+    public static implicit operator Bound((double x0, double y0, double z0, double x1, double y1, double z1) bound) =>
+        new Bound(bound.x0, bound.y0, bound.z0, bound.x1, bound.y1, bound.z1);
 
     public static Bound Create(double width, double height) =>
         new Bound(width, height);
 
-    public static Bound Create(Point point, double width, double height) =>
-        new Bound(point, width, height);
+    public static Bound Create(Point origin, Point to) =>
+        new Bound(origin, to);
 
-    public static Bound Create(double x, double y, double width, double height) =>
-        new Bound(x, y, width, height);
+    public static Bound Create(double x0, double y0, double x1, double y1) =>
+        new Bound(x0, y0, x1, y1);
 
     public static Bound Create(double width, double height, double depth) =>
         new Bound(width, height, depth);
 
-    public static Bound Create(Point point, double width, double height, double depth) =>
-        new Bound(point, width, height, depth);
-
-    public static Bound Create(double x, double y, double z, double width, double height, double depth) =>
-        new Bound(x, y, z, width, height, depth);
+    public static Bound Create(double x0, double y0, double z0, double x1, double y1, double z1) =>
+        new Bound(x0, y0, z0, x1, y1, z1);
 }

@@ -72,7 +72,7 @@ It has the following features:
     such as BinaryTree, QuadTree, OctaTree and more.
 * Completely separates between QuadTree controller and data provider.
   * Builtin data providers: In-memory and ADO.NET.
-  * Using the SQLite ADO.NET provider (Microsoft.Data.Sqlite),
+  * Using the SQLite ADO.NET provider (System.Data.SQLite),
     it is possible to perform bulk inserts of 170,000 2D coordinate points per second in my environment.
 * Fully asynchronous operation.
 * Supported asynchronous streaming lookup (`IAsyncEnumerable<T>`).
@@ -118,25 +118,24 @@ However, please remember that you can use various overloads to express N-dimensi
 
 ### Create QuadTree with ADO.NET provider
 
-This sample code uses SQLite ADO.NET provider: [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/)
+This sample code uses SQLite ADO.NET provider: [System.Data.SQLite](https://www.nuget.org/packages/System.Data.SQLite/)
 
 ```csharp
 using MassivePoints;
 using MassivePoints.Data;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 
 // Open SQLite database.
-var connectionString = new SqliteConnectionStringBuilder()
+var connectionString = new SQLiteConnectionStringBuilder()
 {
     DataSource = "points.db",
-    Mode = SqliteOpenMode.ReadWriteCreate,
 }.ToString();
 
 // Create QuadTree provider using SQLite database.
 double width = 100000.0;   // 2D coordinate bound.
 double height = 100000.0;
 var provider = QuadTree.Factory.CreateProvider<string>(
-    () => new SqliteConnection(connectionString),
+    () => new SQLiteConnection(connectionString),
     new DbDataProviderConfiguration(),
     new Bound(width, height));
 
