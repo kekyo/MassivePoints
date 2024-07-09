@@ -48,12 +48,12 @@ for (var index = 0; index < count; index++)
 }
 
 // Extract values by specifying 2D coordinate range.
-double x = 30000.0;
-double y = 40000.0;
-double width = 35000.0;
-double height = 23000.0;
+double x0 = 30000.0;
+double y0 = 40000.0;
+double x1 = x0 + 35000.0;
+double y1 = y0 + 23000.0;
 foreach (PointItem<string> entry in
-    await session.LookupBoundAsync(new Bound(x, y, width, height)))
+    await session.LookupBoundAsync(new Bound(x0, y0, x1, y1)))
 {
     Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
@@ -249,7 +249,9 @@ With coordinate range by `LookupBoundAsync()`:
 
 ```csharp
 // Extract values by specifying coordinate range.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+Bound targetBound = new Bound(
+    30000.0, 40000.0,                       // x0, y0
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
 
 foreach (PointItem<string> entry in
     await session.LookupBoundAsync(targetBound))
@@ -265,7 +267,9 @@ Use `EnumerateBoundAsync()`:
 
 ```csharp
 // Extract values on asynchronous iterator.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+Bound targetBound = new Bound(
+    30000.0, 40000.0,                       // x0, y0
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
 
 await foreach (PointItem<string> entry in
     session.EnumerateBoundAsync(targetBound))
@@ -292,10 +296,27 @@ With coordinate range by `RemoveBoundAsync()`:
 
 ```csharp
 // Remove coordinate range.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+Bound targetBound = new Bound(
+    30000.0, 40000.0,                       // x0, y0
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
 
 long removed = await session.RemoveBoundAsync(targetBound);
 ```
+
+----
+
+## Advanced topics
+
+### Node and node depth
+
+TODO:
+
+```csharp
+// Insert a coordinate point to get node depth.
+var nodeDepth = await session.InsertPointAsync(point, $"Point{index}");
+```
+
+TODO:
 
 ### Perform index shrinking
 
@@ -307,7 +328,9 @@ While understanding this drawback, set the `performShrinking` argument to `true`
 
 ```csharp
 // Remove coordinate range with index shrinking.
-Bound targetBound = new Bound(30000.0, 40000.0, 35000.0, 23000.0);
+Bound targetBound = new Bound(
+    30000.0, 40000.0,                       // x0, y0
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
 
 long removed = await session.RemoveBoundAsync(
     targetBound, performShrinking: true);
@@ -353,6 +376,11 @@ Apache-v2
 
 ## History
 
+* 0.12.0:
+  * Fixed boundary coordinate precision on calculation for splitting.
+  * Fixed the globe bound.
+  * Added coordinate points validation process on sample code.
+  * Added more xml comments.
 * 0.11.0:
   * Added flush method.
   * Improved bulk insertion when the node already dense points.
