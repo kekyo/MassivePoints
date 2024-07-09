@@ -1,6 +1,6 @@
 # MassivePoints
 
-.NET implementation of QuadTree, hold a very large number of multi-dimensional coordinates and perform fast range searches, with in-memory and database offloading. 
+.NET implementation of modified QuadTree, perform faster range searches from very large number of multi-dimensional coordinates, with in-memory and database offloading.
 
 ![MassivePoints](Images/MassivePoints.200.png)
 
