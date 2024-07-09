@@ -178,31 +178,4 @@ public static class DbDataProviderExtension
             }
         }
     }
-    
-    /// <summary>
-    /// Set SQLite journal mode.
-    /// </summary>
-    /// <typeparam name="TValue">Value type</typeparam>
-    /// <param name="journalMode">Journal mode</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <remarks>If you are using a SQLite provider other than `System.Data.SQLite`, this method may be useful to set the journal mode.
-    /// If you are using `System.Data.SQLite`, you can specify it using a connection string.</remarks>
-    public static async ValueTask SetSQLiteJournalModeAsync<TValue>(
-        this DbDataProvider<TValue> provider,
-        SQLiteJournalModes journalMode,
-        CancellationToken ct = default)
-    {
-        using var connection = await provider.OpenTemporaryConnectionAsync(ct);
-   
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandType = CommandType.Text;
-            command.CommandText =
-                $"PRAGMA journal_mode={journalMode.ToString().ToUpperInvariant()}";
-            if (await command.ExecuteNonQueryAsync(ct) < 0)
-            {
-                throw new InvalidOperationException();
-            }
-        }
-    }
 }

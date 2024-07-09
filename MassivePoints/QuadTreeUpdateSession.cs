@@ -62,7 +62,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         Bound nodeBound,
         Point targetPoint,
         TValue value,
-        int depth,
+        int nodeDepth,
         CancellationToken ct)
     {
         Bound[] childBounds;
@@ -73,11 +73,11 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 nodeId,
                 new ReadOnlyArray<PointItem<TValue>>([new(targetPoint, value)]),
                 0,
-                !nodeBound.IsValidSize,
+                nodeBound.IsEmpty,
                 ct);
             if (inserted >= 1)
             {
-                return depth;
+                return nodeDepth;
             }
 
             childBounds = nodeBound.GetChildBounds();
@@ -98,7 +98,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             if (childBound.IsWithin(targetPoint))
             {
                 return await this.InsertPointAsync(
-                    childId, childBound, targetPoint, value, depth + 1, ct);
+                    childId, childBound, targetPoint, value, nodeDepth + 1, ct);
             }
         }
 
@@ -117,15 +117,16 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
     public ValueTask<int> InsertPointAsync(
         Point point, TValue value, CancellationToken ct = default) =>
-        this.InsertPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, value, 0, ct);
+        this.InsertPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, value, 1, ct);
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask InsertPointsCoreAsync(
+    private async ValueTask<int> InsertPointsCoreAsync(
         TNodeId nodeId,
         Bound nodeBound,
         IReadOnlyArray<PointItem<TValue>> points,
         int bulkInsertBlockSize,
+        int nodeDepth,
         CancellationToken ct)
     {
         int offset = 0;
@@ -137,12 +138,12 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 nodeId,
                 points,
                 offset,
-                !nodeBound.IsValidSize,
+                nodeBound.IsEmpty,
                 ct);
             offset += inserted;
             if (offset >= points.Count)
             {
-                return;
+                return nodeDepth;
             }
 
             childBounds = nodeBound.GetChildBounds();
@@ -164,10 +165,18 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var list = new ExpandableArray<PointItem<TValue>>();
                 var bound = childBounds[index];
-                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Point));
+                list.AddRangePredicate(points, offset, pointItem =>
+                {
+                    if (pointItem.Value!.Equals(293776162L))
+                    {
+                        Debugger.Break();
+                    }
+                    return bound.IsWithin(pointItem.Point);
+                });
                 splittedLists[index] = list;
             });
 
+        var maxNodeDepth = nodeDepth;
         for (var index = 0; index < childIds.Length; index++)
         {
             var list = splittedLists[index];
@@ -176,50 +185,59 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                await this.InsertPointsAsync(
-                    childId, childBound, list, bulkInsertBlockSize, ct);
+                maxNodeDepth = Math.Max(maxNodeDepth,
+                    await this.InsertPointsAsync(
+                        childId, childBound, list, bulkInsertBlockSize, nodeDepth + 1, ct));
             }
         }
+        return maxNodeDepth;
     }
 
-    private async ValueTask InsertPointsAsync(
+    private async ValueTask<int> InsertPointsAsync(
         TNodeId nodeId,
         Bound nodeBound,
         IReadOnlyArray<PointItem<TValue>> points,
         int bulkInsertBlockSize,
+        int nodeDepth,
         CancellationToken ct)
     {
         if (points.Count <= bulkInsertBlockSize)
         {
-            await this.InsertPointsCoreAsync(
-                nodeId, nodeBound, points, bulkInsertBlockSize, ct);
+            return await this.InsertPointsCoreAsync(
+                nodeId, nodeBound, points, bulkInsertBlockSize, nodeDepth + 1, ct);
         }
         else
         {
             var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
+            var maxNodeDepth = nodeDepth;
             foreach (var pointItem in points)
             {
                 fixedList.Add(pointItem);
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
-                    await this.InsertPointsCoreAsync(
-                        this.providerSession.RootId,
-                        this.providerSession.Entire,
-                        fixedList,
-                        bulkInsertBlockSize,
-                        ct);
+                    maxNodeDepth = Math.Max(maxNodeDepth,
+                        await this.InsertPointsCoreAsync(
+                            this.providerSession.RootId,
+                            this.providerSession.Entire,
+                            fixedList,
+                            bulkInsertBlockSize,
+                            nodeDepth + 1,
+                            ct));
                     fixedList.Clear();
                 }
             }
             if (fixedList.Count >= 1)
             {
-                await this.InsertPointsCoreAsync(
-                    nodeId,
-                    nodeBound,
-                    fixedList,
-                    bulkInsertBlockSize,
-                    ct);
+                maxNodeDepth = Math.Max(maxNodeDepth,
+                    await this.InsertPointsCoreAsync(
+                        nodeId,
+                        nodeBound,
+                        fixedList,
+                        bulkInsertBlockSize,
+                        nodeDepth + 1,
+                        ct));
             }
+            return maxNodeDepth;
         }
     }
 
@@ -229,7 +247,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="points">Coordinate point and values</param>
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
-    public async ValueTask InsertPointsAsync(
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    public async ValueTask<int> InsertPointsAsync(
         IEnumerable<PointItem<TValue>> points,
         int bulkInsertBlockSize = 100000,
         CancellationToken ct = default)
@@ -237,39 +256,46 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         if (points is IReadOnlyList<PointItem<TValue>> pointList &&
             pointList.Count < bulkInsertBlockSize)
         {
-            await this.InsertPointsCoreAsync(
+            return await this.InsertPointsCoreAsync(
                 this.providerSession.RootId,
                 this.providerSession.Entire,
                 new ReadOnlyArray<PointItem<TValue>>(pointList),
                 bulkInsertBlockSize,
+                1,
                 ct);
         }
         else
         {
             var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
+            var maxNodeDepth = 0;
             foreach (var pointItem in points)
             {
                 fixedList.Add(pointItem);
                 if (fixedList.Count >= bulkInsertBlockSize)
                 {
-                    await this.InsertPointsCoreAsync(
-                        this.providerSession.RootId,
-                        this.providerSession.Entire,
-                        fixedList,
-                        bulkInsertBlockSize,
-                        ct);
+                    maxNodeDepth = Math.Max(maxNodeDepth,
+                        await this.InsertPointsCoreAsync(
+                            this.providerSession.RootId,
+                            this.providerSession.Entire,
+                            fixedList,
+                            bulkInsertBlockSize,
+                            1,
+                            ct));
                     fixedList.Clear();
                 }
             }
             if (fixedList.Count >= 1)
             {
-                await this.InsertPointsCoreAsync(
-                    this.providerSession.RootId,
-                    this.providerSession.Entire,
-                    fixedList,
-                    bulkInsertBlockSize,
-                    ct);
+                maxNodeDepth = Math.Max(maxNodeDepth,
+                    await this.InsertPointsCoreAsync(
+                        this.providerSession.RootId,
+                        this.providerSession.Entire,
+                        fixedList,
+                        bulkInsertBlockSize,
+                        1,
+                        ct));
             }
+            return maxNodeDepth;
         }
     }
 
@@ -281,35 +307,42 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="points">Coordinate point and values</param>
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
-    public async ValueTask InsertPointsAsync(
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    public async ValueTask<int> InsertPointsAsync(
         IAsyncEnumerable<PointItem<TValue>> points,
         int bulkInsertBlockSize = 100000,
         CancellationToken ct = default)
     {
         var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
+        var maxNodeDepth = 0;
         await foreach (var pointItem in points)
         {
             fixedList.Add(pointItem);
             if (fixedList.Count >= bulkInsertBlockSize)
             {
-                await this.InsertPointsCoreAsync(
-                    this.providerSession.RootId,
-                    this.providerSession.Entire,
-                    fixedList,
-                    bulkInsertBlockSize,
-                    ct);
+                maxNodeDepth = Math.Max(maxNodeDepth,
+                    await this.InsertPointsCoreAsync(
+                        this.providerSession.RootId,
+                        this.providerSession.Entire,
+                        fixedList,
+                        bulkInsertBlockSize,
+                        1,
+                        ct));
                 fixedList.Clear();
             }
         }
         if (fixedList.Count >= 1)
         {
-            await this.InsertPointsCoreAsync(
-                this.providerSession.RootId,
-                this.providerSession.Entire,
-                fixedList,
-                bulkInsertBlockSize,
-                ct);
+            maxNodeDepth = Math.Max(maxNodeDepth,
+                await this.InsertPointsCoreAsync(
+                    this.providerSession.RootId,
+                    this.providerSession.Entire,
+                    fixedList,
+                    bulkInsertBlockSize,
+                    1,
+                    ct));
         }
+        return maxNodeDepth;
     }
 
     /////////////////////////////////////////////////////////////////////////////////

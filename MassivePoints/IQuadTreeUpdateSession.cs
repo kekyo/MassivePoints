@@ -48,7 +48,8 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// <param name="points">Coordinate point and values</param>
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
-    ValueTask InsertPointsAsync(
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    ValueTask<int> InsertPointsAsync(
         IEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
 
     /// <summary>
@@ -57,7 +58,8 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// <param name="points">Coordinate point and values</param>
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
-    ValueTask InsertPointsAsync(
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    ValueTask<int> InsertPointsAsync(
         IAsyncEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
 
     /// <summary>

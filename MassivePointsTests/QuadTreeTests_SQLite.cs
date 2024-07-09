@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using MassivePoints.Data;
-using Microsoft.Data.Sqlite;
+//using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -74,7 +74,7 @@ public sealed class QuadTreeTests_SQLite
         var axes = new Axis[dimension];
         for (var d = 0; d < dimension; d++)
         {
-            axes[d] = new Axis(r.Next(0, 49999), r.Next(0, 49999));
+            axes[d] = new Axis(r.Next(0, 49999), r.Next(50000, 99999));
         }
         return new Bound(axes);
     }

@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -37,32 +37,38 @@ public readonly struct Axis : IEquatable<Axis>
     /// Axis origin point.
     /// </summary>
     public readonly double Origin;
-    
+        
     /// <summary>
-    /// Axis size.
+    /// Axis to point (exclusive).
     /// </summary>
-    public readonly double Size;
+    public readonly double To;
 
     /// <summary>
     /// Constructor.
     /// </summary>
     /// <param name="origin">Axis origin point</param>
-    /// <param name="size">Axis size</param>
-    public Axis(double origin, double size)
+    /// <param name="to">Axis to point (exclusive)</param>
+    public Axis(double origin, double to)
     {
         this.Origin = origin;
-        this.Size = size;
+        this.To = to;
     }
 
     /// <summary>
-    /// Is size valid.
+    /// Axis size (hint).
     /// </summary>
-    public bool IsValidSize =>
-        this.Size >= MinSize;
+    public double SizeHint =>
+        this.To - this.Origin;
+
+    /// <summary>
+    /// Is size empty.
+    /// </summary>
+    public bool IsEmpty =>
+        this.SizeHint < MinSize;
 
     public bool Equals(Axis other) =>
         this.Origin == other.Origin &&
-        this.Size == other.Size;
+        this.To == other.To;
 
     bool IEquatable<Axis>.Equals(Axis other) =>
         this.Equals(other);
@@ -72,23 +78,23 @@ public readonly struct Axis : IEquatable<Axis>
 
     public override int GetHashCode() =>
         (this.Origin.GetHashCode() * 397) ^
-        this.Size.GetHashCode();
+        this.To.GetHashCode();
 
     public override string ToString() =>
-        $"Axis: {this.Origin} ({this.Size})";
+        $"[{this.Origin} - {this.To})";
 
-    public static implicit operator Axis((double origin, double size) axis) =>
-        new Axis(axis.origin, axis.size);
+    public static implicit operator Axis((double origin, double to) axis) =>
+        new Axis(axis.origin, axis.to);
 }
 
 public static class AxisExtension
 {
     public static void Deconstruct(
         this Axis self,
-        double origin,
-        double size)
+        out double origin,
+        out double to)
     {
         origin = self.Origin;
-        size = self.Size;
+        to = self.To;
     }
 }
