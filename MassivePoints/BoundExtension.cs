@@ -186,7 +186,7 @@ public static class BoundExtension
             var l = self.Axes[index];
             var r = bound.Axes[index];
             
-            if (l.Origin > r.To || r.Origin > l.To)
+            if (l.Origin > r.To || r.Origin >= l.To)
             {
                 return false;
             }
