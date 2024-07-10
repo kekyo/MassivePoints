@@ -95,7 +95,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint))
+            if (childBound.IsWithin(targetPoint, false))
             {
                 return await this.InsertPointAsync(
                     childId, childBound, targetPoint, value, nodeDepth + 1, ct);
@@ -165,14 +165,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var list = new ExpandableArray<PointItem<TValue>>();
                 var bound = childBounds[index];
-                list.AddRangePredicate(points, offset, pointItem =>
-                {
-                    if (pointItem.Value!.Equals(293776162L))
-                    {
-                        Debugger.Break();
-                    }
-                    return bound.IsWithin(pointItem.Point);
-                });
+                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Point, false));
                 splittedLists[index] = list;
             });
 
@@ -366,7 +359,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            Debug.Assert(!childBound.IsWithin(targetPoint));
+            Debug.Assert(!childBound.IsWithin(targetPoint, false));
             remainsHint += await this.GetPointCountAsync(
                 childId, childBound, targetPoint, ct);
 
@@ -405,7 +398,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (childBound.IsWithin(targetPoint, false))
                 {
                     var (rmd, rms) = await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -436,7 +429,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (childBound.IsWithin(targetPoint, false))
                 {
                     return await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -489,7 +482,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (childBound.IsIntersection(targetBound, false, false))
                 {
                     var (rmd, rms) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
@@ -521,7 +514,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (childBound.IsIntersection(targetBound, false, false))
                 {
                     var (rmd, _) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);

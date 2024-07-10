@@ -251,10 +251,25 @@ With coordinate range by `LookupBoundAsync()`:
 // Extract values by specifying coordinate range.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1  (exclusive, right-opened)
 
 foreach (PointItem<string> entry in
     await session.LookupBoundAsync(targetBound))
+{
+    Console.WriteLine($"{entry.Point}: {entry.Value}");
+}
+```
+
+Note that the coordinate range is right-open interval.
+
+* ex: `[30000.0,40000.0 - 65000.0,63000.0)`
+
+If you want it right-closed, set the `isRightClosed` argument to `true`:
+
+```csharp
+// Perform looking up for right-closed range.
+foreach (PointItem<string> entry in
+    await session.LookupBoundAsync(targetBound, isRightClosed: true))
 {
     Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
@@ -269,7 +284,7 @@ Use `EnumerateBoundAsync()`:
 // Extract values on asynchronous iterator.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1  (exclusive, right-opened)
 
 await foreach (PointItem<string> entry in
     session.EnumerateBoundAsync(targetBound))
@@ -298,7 +313,7 @@ With coordinate range by `RemoveBoundAsync()`:
 // Remove coordinate range.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1  (exclusive, right-opened)
 
 long removed = await session.RemoveBoundAsync(targetBound);
 ```
@@ -376,6 +391,8 @@ Apache-v2
 
 ## History
 
+* 0.13.0:
+  * Supported looking up with right-closed interval.
 * 0.12.0:
   * Fixed boundary coordinate precision on calculation for splitting.
   * Fixed the globe bound.

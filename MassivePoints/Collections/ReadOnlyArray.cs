@@ -23,6 +23,7 @@ namespace MassivePoints.Collections;
 public interface IReadOnlyArray<T> : IReadOnlyList<T>
 {
     void CopyTo(int index, T[] array, int toIndex, int count);
+    T[] AsArray();
 }
 
 /// <summary>
@@ -65,4 +66,23 @@ public sealed class ReadOnlyArray<T> : IReadOnlyArray<T>
 
     IEnumerator IEnumerable.GetEnumerator() =>
         this.values.GetEnumerator();
+
+    public T[] AsArray()
+    {
+        if (this.values is T[] array)
+        {
+            return array;
+        }
+        else
+        {
+            array = new T[this.values.Count];
+            for (var index = 0; index< array.Length; index++)
+            {
+                array[index] = this.values[index];
+            }
+            return array;
+        }
+    }
+
+    public static readonly ReadOnlyArray<T> Empty = new(Array.Empty<T>());
 }

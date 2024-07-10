@@ -85,7 +85,7 @@ public readonly struct Bound : IEquatable<Bound>
     /// Constructor.
     /// </summary>
     /// <param name="origin">Origin point</param>
-    /// <param name="to">To point (exclusive)</param>
+    /// <param name="to">To point (exclusive, right-opened)</param>
     /// <remarks>This constructor will create rectangle range between two points.</remarks>
     public Bound(Point origin, Point to)
     {
@@ -165,21 +165,21 @@ public readonly struct Bound : IEquatable<Bound>
         this.Axes is [_,_,var z,..] ? z.Origin : double.NaN;
 
     /// <summary>
-    /// X axis to (exclusive).
+    /// X axis to (exclusive, right-opened).
     /// </summary>
     /// <remarks>This property works when the dimension is one or more.</remarks>
     public double X1 =>
         this.Axes is [var x,..] ? x.To : double.NaN;
     
     /// <summary>
-    /// Y axis to (exclusive).
+    /// Y axis to (exclusive, right-opened).
     /// </summary>
     /// <remarks>This property works when the dimension is two or more.</remarks>
     public double Y1 =>
         this.Axes is [_,var y,..] ? y.To : double.NaN;
     
     /// <summary>
-    /// Z axis to (exclusive).
+    /// Z axis to (exclusive, right-opened).
     /// </summary>
     /// <remarks>This property works when the dimension is three or more.</remarks>
     public double Z1 =>
@@ -254,7 +254,7 @@ public readonly struct Bound : IEquatable<Bound>
             var hash = 0;
             for (var index = 0; index < this.Axes.Length; index++)
             {
-                hash ^= this.Axes[index].GetHashCode() * 397;
+                hash = (hash * 397) ^ this.Axes[index].GetHashCode();
             }
             return hash;
         }
@@ -282,7 +282,7 @@ public readonly struct Bound : IEquatable<Bound>
     /// Create coordinate range.
     /// </summary>
     /// <param name="origin">Origin point</param>
-    /// <param name="to">To point (exclusive)</param>
+    /// <param name="to">To point (exclusive, right-opened)</param>
     /// <returns>Bound</returns>
     public static Bound Create(Point origin, Point to) =>
         new Bound(origin, to);
@@ -301,8 +301,8 @@ public readonly struct Bound : IEquatable<Bound>
     /// </summary>
     /// <param name="x0">X origin point</param>
     /// <param name="y0">Y origin point</param>
-    /// <param name="x1">X to point (exclusive)</param>
-    /// <param name="y1">Y to point (exclusive)</param>
+    /// <param name="x1">X to point (exclusive, right-opened)</param>
+    /// <param name="y1">Y to point (exclusive, right-opened)</param>
     /// <returns>Bound</returns>
     public static Bound Create(double x0, double y0, double x1, double y1) =>
         new Bound(x0, y0, x1, y1);
@@ -323,9 +323,9 @@ public readonly struct Bound : IEquatable<Bound>
     /// <param name="x0">X origin point</param>
     /// <param name="y0">Y origin point</param>
     /// <param name="z0">Z origin point</param>
-    /// <param name="x1">X to point (exclusive)</param>
-    /// <param name="y1">Y to point (exclusive)</param>
-    /// <param name="z1">Z to point (exclusive)</param>
+    /// <param name="x1">X to point (exclusive, right-opened)</param>
+    /// <param name="y1">Y to point (exclusive, right-opened)</param>
+    /// <param name="z1">Z to point (exclusive, right-opened)</param>
     /// <returns>Bound</returns>
     public static Bound Create(double x0, double y0, double z0, double x1, double y1, double z1) =>
         new Bound(x0, y0, z0, x1, y1, z1);

@@ -51,6 +51,7 @@ public sealed class DbDataProviderConfiguration
     public readonly DbQueryDefinition updatePointsQuery;
     public readonly DbQueryDefinition selectPointQuery;
     public readonly DbQueryDefinition selectPointsQuery;
+    public readonly DbQueryDefinition selectPointsInclusiveQuery;
     public readonly DbQueryDefinition deletePointQuery;
     public readonly DbQueryDefinition deleteBoundQuery;
 
@@ -103,6 +104,9 @@ public sealed class DbDataProviderConfiguration
         var nodePointColumnNamesInRangeWhereJoined = string.Join(" AND ",
             Enumerable.Range(0, dimensionAxisCount).
             Select(index => $"{this.ParameterNameInQuery(this.NodePointColumnName(index))}0<={this.NodePointColumnName(index)} AND {this.NodePointColumnName(index)}<{this.ParameterNameInQuery(this.NodePointColumnName(index))}1"));
+        var nodePointColumnNamesInRangeInclusiveWhereJoined = string.Join(" AND ",
+            Enumerable.Range(0, dimensionAxisCount).
+            Select(index => $"{this.ParameterNameInQuery(this.NodePointColumnName(index))}0<={this.NodePointColumnName(index)} AND {this.NodePointColumnName(index)}<={this.ParameterNameInQuery(this.NodePointColumnName(index))}1"));
         var pointParameterNamesInArgument = Enumerable.Range(0, dimensionAxisCount).
             Select(index => this.ParameterNameInArgument(this.NodePointColumnName(index))).
             ToArray();
@@ -138,6 +142,9 @@ public sealed class DbDataProviderConfiguration
             [ this.ParameterNameInArgument("node_id"), ..pointParameterNamesInArgument ]);
         this.selectPointsQuery = new(
             $"SELECT {nodePointColumnNamesJoined},[value] FROM {this.Prefix}_node_points WHERE node_id={this.ParameterNameInQuery("node_id")} AND {nodePointColumnNamesInRangeWhereJoined}",
+            [ this.ParameterNameInArgument("node_id"), ..pointRangeParameterNamesInArgument ]);
+        this.selectPointsInclusiveQuery = new(
+            $"SELECT {nodePointColumnNamesJoined},[value] FROM {this.Prefix}_node_points WHERE node_id={this.ParameterNameInQuery("node_id")} AND {nodePointColumnNamesInRangeInclusiveWhereJoined}",
             [ this.ParameterNameInArgument("node_id"), ..pointRangeParameterNamesInArgument ]);
         this.deletePointQuery = new(
             $"DELETE FROM {this.Prefix}_node_points WHERE node_id={this.ParameterNameInQuery("node_id")} AND {nodePointColumnNamesInPointWhereJoined}",
@@ -487,7 +494,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
-        public async ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        public async ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupPointAsync(
             long nodeId, Point targetPoint, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
@@ -500,7 +507,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 args[1 + index] = targetPoint.Elements[index];
             }
 
-            var results = new List<PointItem<TValue>>();
+            var results = new ExpandableArray<PointItem<TValue>>(Math.Max(4, this.MaxNodePoints / 4));
             await command.ExecuteReadRecordsAsync(
                 record =>
                 {
@@ -514,14 +521,17 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                         (TValue)record.GetValue(rps.Length)));
                 },
                 ct, args);
-            return results.ToArray();
+            return results;
         }
 
-        public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-            long nodeId, Bound targetBound, CancellationToken ct)
+        public async ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupBoundAsync(
+            long nodeId, Bound targetBound, bool inclusiveBoundTo, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.configuration.selectPointsQuery, ct);
+                inclusiveBoundTo ?
+                    this.parent.configuration.selectPointsInclusiveQuery :
+                    this.parent.configuration.selectPointsQuery,
+                ct);
             
             var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;
@@ -532,7 +542,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 args[1 + index * 2 + 1] = axis.To;
             }
 
-            var results = new List<PointItem<TValue>>();
+            var results = new ExpandableArray<PointItem<TValue>>(Math.Max(4, this.MaxNodePoints / 4));
             await command.ExecuteReadRecordsAsync(
                 record =>
                 {
@@ -546,14 +556,17 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                         (TValue)record.GetValue(rps.Length)));
                 },
                 ct, args);
-            return results.ToArray();
+            return results;
         }
 
         public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-            long nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
+            long nodeId, Bound targetBound, bool inclusiveBoundTo, [EnumeratorCancellation] CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.configuration.selectPointsQuery, ct);
+                inclusiveBoundTo ?
+                    this.parent.configuration.selectPointsInclusiveQuery :
+                    this.parent.configuration.selectPointsQuery,
+                ct);
             
             var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;

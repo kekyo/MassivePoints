@@ -166,7 +166,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
                 {
                     var toPointList = new ExpandableArray<PointItem<TValue>>();
                     var toBound = toBounds[index];
-                    toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Point));
+                    toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Point, false));
                     toPoints[index] = toPointList;
                 });
 
@@ -187,13 +187,22 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         public ValueTask AggregatePointsAsync(
             int[] nodeIds, Bound toBound, int toNodeId, CancellationToken ct)
         {
-            var points = new ExpandableArray<PointItem<TValue>>();
+            var pointCount = 0;
+            foreach (var nodeId in nodeIds)
+            {
+                if (this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
+                {
+                    pointCount += pointItems.Count;
+                }
+            }
+           
+            var points = new ExpandableArray<PointItem<TValue>>(pointCount);
 
             foreach (var nodeId in nodeIds)
             {
                 if (this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
                 {
-                    Debug.Assert(pointItems.All(pointItem => toBound.IsWithin(pointItem.Point)));
+                    Debug.Assert(pointItems.All(pointItem => toBound.IsWithin(pointItem.Point, false)));
 
                     points.AddRange(pointItems);
                     this.parent.nodePoints.Remove(nodeId);
@@ -206,22 +215,34 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return default;
         }
 
-        public ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        public ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupPointAsync(
             int nodeId, Point targetPoint, CancellationToken ct) =>
-            new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => targetPoint.Equals(entry.Point)).ToArray()));
+            new(Task.Run(() =>
+            {
+                var nodePoints = this.parent.nodePoints[nodeId];
+                var results = new ExpandableArray<PointItem<TValue>>(Math.Max(4, nodePoints.Count / 4));
+                results.AddRangePredicate(nodePoints, pointItem => targetPoint.Equals(pointItem.Point));
+                return (IReadOnlyArray<PointItem<TValue>>)results;
+            }));
 
-        public ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-            int nodeId, Bound targetBound, CancellationToken ct) =>
-            new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => targetBound.IsWithin(entry.Point)).ToArray()));
+        public ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupBoundAsync(
+            int nodeId, Bound targetBound, bool isRightClosed, CancellationToken ct) =>
+            new(Task.Run(() =>
+            {
+                var nodePoints = this.parent.nodePoints[nodeId];
+                var results = new ExpandableArray<PointItem<TValue>>(Math.Max(4, nodePoints.Count / 4));
+                results.AddRangePredicate(nodePoints, pointItem => targetBound.IsWithin(pointItem.Point, isRightClosed));
+                return (IReadOnlyArray<PointItem<TValue>>)results;
+            }));
 
         public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-            int nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
+            int nodeId, Bound targetBound, bool isRightClosed, [EnumeratorCancellation] CancellationToken ct)
         {
-            foreach (var entry in this.parent.nodePoints[nodeId])
+            foreach (var pointItem in this.parent.nodePoints[nodeId])
             {
-                if (targetBound.IsWithin(entry.Point))
+                if (targetBound.IsWithin(pointItem.Point, isRightClosed))
                 {
-                    yield return entry;
+                    yield return pointItem;
                 }
             }
         }
@@ -254,7 +275,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             for (var index = points.Count - 1; index >= 0; index--)
             {
                 var entry = points[index];
-                if (bound.IsWithin(entry.Point))
+                if (bound.IsWithin(entry.Point, false))
                 {
                     points.RemoveAt(index);
                     removed++;

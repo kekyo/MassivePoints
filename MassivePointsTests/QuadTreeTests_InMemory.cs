@@ -281,14 +281,14 @@ public sealed class QuadTreeTests_InMemory
 
         await using (var session = await quadTree.BeginSessionAsync())
         {
-            // Try random bounds lookup, repeats 100 times.
-            for (var index = 0; index < 100; index++)
+            // Try random bounds lookup, repeats 1000 times.
+            for (var index = 0; index < 1000; index++)
             {
                 var bound = GetRandomBound(r, dimension);
 
                 var expected = allPoints.
                     Select((p, index) => (p, index)).
-                    Where(entry => bound.IsWithin(entry.p)).
+                    Where(entry => bound.IsWithin(entry.p, false)).
                     OrderBy(entry => entry.index).
                     Select(entry => (long)entry.index).
                     ToArray();
@@ -326,14 +326,14 @@ public sealed class QuadTreeTests_InMemory
 
         await using (var session = await quadTree.BeginSessionAsync())
         {
-            // Try random bounds lookup, repeats 100 times.
-            for (var index = 0; index < 100; index++)
+            // Try random bounds lookup, repeats 1000 times.
+            for (var index = 0; index < 1000; index++)
             {
                 var bound = GetRandomBound(r, dimension);
 
                 var expected = allPoints.
                     Select((p, index) => (p, index)).
-                    Where(entry => bound.IsWithin(entry.p)).
+                    Where(entry => bound.IsWithin(entry.p, false)).
                     OrderBy(entry => entry.index).
                     Select(entry => (long)entry.index).
                     ToArray();

@@ -38,17 +38,19 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// Lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
     ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct = default);
+        Bound bound, bool isRightClosed = false, CancellationToken ct = default);
     
     /// <summary>
     /// Streaming lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
     IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, CancellationToken ct = default);
+        Bound bound, bool isRightClosed = false, CancellationToken ct = default);
 }

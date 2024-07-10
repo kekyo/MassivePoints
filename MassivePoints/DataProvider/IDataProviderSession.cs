@@ -105,14 +105,14 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     ValueTask AggregatePointsAsync(
         TNodeId[] nodeIds, Bound toBound, TNodeId toNodeId, CancellationToken ct);
 
-    ValueTask<PointItem<TValue>[]> LookupPointAsync(
+    ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupPointAsync(
         TNodeId nodeId, Point targetPoint, CancellationToken ct);
 
-    ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        TNodeId nodeId, Bound targetBound, CancellationToken ct);
+    ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupBoundAsync(
+        TNodeId nodeId, Bound targetBound, bool inclusiveBoundTo, CancellationToken ct);
 
     IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        TNodeId nodeId, Bound targetBound, CancellationToken ct);
+        TNodeId nodeId, Bound targetBound, bool inclusiveBoundTo, CancellationToken ct);
 
     ValueTask<RemoveResults> RemovePointAsync(
         TNodeId nodeId, Point point, bool includeRemains, CancellationToken ct);

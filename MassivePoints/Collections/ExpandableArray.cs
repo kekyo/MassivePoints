@@ -44,9 +44,6 @@ public sealed class ExpandableArray<T> : IExpandableArray<T>
     public ExpandableArray(int capacity = 1024) =>
         this.values = new T[capacity];
 
-    public T[] RawArray =>
-        this.values;
-
     public T this[int index]
     {
         get
@@ -163,4 +160,18 @@ public sealed class ExpandableArray<T> : IExpandableArray<T>
 
     public void CopyTo(int index, T[] array, int toIndex, int count) =>
         Array.Copy(this.values, index, array, toIndex, count);
+
+    public T[] AsArray()
+    {
+        if (this.values.Length == this.exactLength)
+        {
+            return this.values;
+        }
+        else
+        {
+            var array = new T[this.exactLength];
+            Array.Copy(this.values, array, array.Length);
+            return array;
+        }
+    }
 }

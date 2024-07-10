@@ -39,7 +39,7 @@ public readonly struct Axis : IEquatable<Axis>
     public readonly double Origin;
         
     /// <summary>
-    /// Axis to point (exclusive).
+    /// Axis to point (exclusive, right-opened).
     /// </summary>
     public readonly double To;
 
@@ -47,7 +47,7 @@ public readonly struct Axis : IEquatable<Axis>
     /// Constructor.
     /// </summary>
     /// <param name="origin">Axis origin point</param>
-    /// <param name="to">Axis to point (exclusive)</param>
+    /// <param name="to">Axis to point (exclusive, right-opened)</param>
     public Axis(double origin, double to)
     {
         this.Origin = origin;

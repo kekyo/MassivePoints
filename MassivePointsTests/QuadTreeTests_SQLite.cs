@@ -375,7 +375,7 @@ public sealed class QuadTreeTests_SQLite
 
                 var expected = points.
                     Select((p, index) => (p, index)).
-                    Where(entry => bound.IsWithin(entry.p)).
+                    Where(entry => bound.IsWithin(entry.p, false)).
                     OrderBy(entry => entry.index).
                     Select(entry => (long)entry.index).
                     ToArray();
@@ -425,7 +425,7 @@ public sealed class QuadTreeTests_SQLite
         
         await using (var session = await quadTree.BeginSessionAsync())
         {
-            // Try random bounds lookup, repeats 100 times.
+            // Try random bounds lookup, repeats 1000 times.
             var r = new Random();
             for (var index = 0; index < 1000; index++)
             {
@@ -433,7 +433,7 @@ public sealed class QuadTreeTests_SQLite
 
                 var expected = points.
                     Select((p, index) => (p, index)).
-                    Where(entry => bound.IsWithin(entry.p)).
+                    Where(entry => bound.IsWithin(entry.p, false)).
                     OrderBy(entry => entry.index).
                     Select(entry => (long)entry.index).
                     ToArray();

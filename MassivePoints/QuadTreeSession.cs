@@ -57,7 +57,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    private async ValueTask<PointItem<TValue>[]> LookupPointAsync(
+    private async ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupPointAsync(
         TNodeId nodeId,
         Bound nodeBound,
         Point targetPoint,
@@ -76,14 +76,14 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint))
+            if (childBound.IsWithin(targetPoint, false))
             {
                 return await this.LookupPointAsync(
                     childId, childBound, targetPoint, ct);
             }
         }
 
-        return Array.Empty<PointItem<TValue>>();
+        return ReadOnlyArray<PointItem<TValue>>.Empty;
     }
 
     /// <summary>
@@ -92,9 +92,16 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// <param name="point">Coordinate point</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    public ValueTask<PointItem<TValue>[]> LookupPointAsync(
-        Point point, CancellationToken ct = default) =>
-        this.LookupPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, ct);
+    public async ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        Point point, CancellationToken ct = default)
+    {
+        var results = await this.LookupPointAsync(
+            this.providerSession.RootId,
+            this.providerSession.Entire,
+            point,
+            ct);
+        return results.AsArray();
+    }
     
     /////////////////////////////////////////////////////////////////////////////////
 
@@ -102,13 +109,14 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
-        IExpandableArray<PointItem<TValue>[]> results,
+        bool inclusiveBoundTo,
+        IExpandableArray<IReadOnlyArray<PointItem<TValue>>> results,
         CancellationToken ct)
     {
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             var rs = await this.providerSession.LookupBoundAsync(
-                nodeId, targetBound, ct);
+                nodeId, targetBound, inclusiveBoundTo, ct);
             lock (results)
             {
                 results.Add(rs);
@@ -123,11 +131,11 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             childBounds.
             Select((childBound, index) =>
             {
-                if (childBound.IsIntersection(targetBound))
+                if (childBound.IsIntersection(targetBound, false, inclusiveBoundTo))
                 {
                     var childId = childIds[index];
                     return this.LookupBoundAsync(
-                        childId, childBound, targetBound, results, ct).
+                        childId, childBound, targetBound, inclusiveBoundTo, results, ct).
                         AsTask();
                 }
                 else
@@ -141,13 +149,20 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// Lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
     public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct = default)
+        Bound bound, bool isRightClosed = false, CancellationToken ct = default)
     {
-        var results = new ExpandableArray<PointItem<TValue>[]>();
-        await this.LookupBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, results, ct);
+        var results = new ExpandableArray<IReadOnlyArray<PointItem<TValue>>>();
+        await this.LookupBoundAsync(
+            this.providerSession.RootId,
+            this.providerSession.Entire,
+            bound,
+            isRightClosed,
+            results,
+            ct);
         return results.SelectMany(r => r).ToArray();
     }
     
@@ -161,12 +176,13 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
+        bool inclusiveBoundTo,
         CancellationToken ct)
     {
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             return this.providerSession.EnumerateBoundAsync(
-                nodeId, targetBound, ct);
+                nodeId, targetBound, inclusiveBoundTo, ct);
         }
 
         var childIds = node.ChildIds;
@@ -177,12 +193,12 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsIntersection(targetBound))
+            if (childBound.IsIntersection(targetBound, false, inclusiveBoundTo))
             {
                 results = results?.Concat(await this.EnumerateBoundAsync(
-                    childId, childBound, targetBound, ct), ct) ??
+                    childId, childBound, targetBound, inclusiveBoundTo, ct), ct) ??
                     await this.EnumerateBoundAsync(
-                        childId, childBound, targetBound, ct);
+                        childId, childBound, targetBound, inclusiveBoundTo, ct);
             }
         }
         
@@ -193,14 +209,20 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     /// Streaming lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
     public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, [EnumeratorCancellation] CancellationToken ct = default)
+        Bound bound, bool isRightClosed = false, [EnumeratorCancellation] CancellationToken ct = default)
     {
         // Unwrap all nested asynchronous tasks.
         await foreach (var entry in
-            (await this.EnumerateBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, ct)).
+            (await this.EnumerateBoundAsync(
+                this.providerSession.RootId,
+                this.providerSession.Entire,
+                bound,
+                isRightClosed,
+                ct)).
             WithCancellation(ct))
         {
             yield return entry;

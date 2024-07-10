@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 //
 // MassivePoints - .NET implementation of QuadTree.
 // Copyright (c) Kouji Matsui (@kozy_kekyo, @kekyo@mastodon.cloud)
@@ -121,23 +121,40 @@ public static class BoundExtension
     /// </summary>
     /// <param name="self">`Bound`</param>
     /// <param name="point">A coordinate point</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <returns>True when within.</returns>
     public static bool IsWithin(
-        this Bound self, Point point)
+        this Bound self, Point point, bool isRightClosed)
     {
         if (self.Axes.Length != point.Elements.Length)
         {
             return false;
         }
 
-        for (var index = 0; index < self.Axes.Length; index++)
+        if (isRightClosed)
         {
-            var l = self.Axes[index];
-            var r = point.Elements[index];
-            
-            if (!(l.Origin <= r && r < l.To))
+            for (var index = 0; index < self.Axes.Length; index++)
             {
-                return false;
+                var l = self.Axes[index];
+                var r = point.Elements[index];
+            
+                if (l.Origin > r || r > l.To)
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            for (var index = 0; index < self.Axes.Length; index++)
+            {
+                var l = self.Axes[index];
+                var r = point.Elements[index];
+            
+                if (l.Origin > r || r >= l.To)
+                {
+                    return false;
+                }
             }
         }
 
@@ -152,8 +169,8 @@ public static class BoundExtension
     /// <param name="y">Y</param>
     /// <returns>True is within.</returns>
     public static bool IsWithin(
-        this Bound self, double x, double y) =>
-        IsWithin(self, new Point(x, y));
+        this Bound self, double x, double y, bool isRightClosed) =>
+        IsWithin(self, new Point(x, y), isRightClosed);
 
     /// <summary>
     /// Checks whether the specified 3D coordinate point is within this range.
@@ -164,31 +181,49 @@ public static class BoundExtension
     /// <param name="z">Z</param>
     /// <returns>True is within.</returns>
     public static bool IsWithin(
-        this Bound self, double x, double y, double z) =>
-        IsWithin(self, new Point(x, y, z));
+        this Bound self, double x, double y, double z, bool isRightClosed) =>
+        IsWithin(self, new Point(x, y, z), isRightClosed);
 
     /// <summary>
-    /// Checks whether the specified range is intersects this range.
+    /// Checks whether the specified range intersects this range.
     /// </summary>
     /// <param name="self">`Bound`</param>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
+    /// <param name="inclusiveBoundTo">Include `bound` argument coordinate range `to` points</param>
     /// <returns>True when intersected.</returns>
     public static bool IsIntersection(
-        this Bound self, Bound bound)
+        this Bound self, Bound bound, bool isRightClosed, bool inclusiveBoundTo)
     {
         if (self.Axes.Length != bound.Axes.Length)
         {
             return false;
         }
 
-        for (var index = 0; index < self.Axes.Length; index++)
+        if (inclusiveBoundTo)
         {
-            var l = self.Axes[index];
-            var r = bound.Axes[index];
-            
-            if (l.Origin > r.To || r.Origin >= l.To)
+            for (var index = 0; index < self.Axes.Length; index++)
             {
-                return false;
+                var l = self.Axes[index];
+                var r = bound.Axes[index];
+            
+                if (l.Origin > r.To || r.Origin > l.To)
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            for (var index = 0; index < self.Axes.Length; index++)
+            {
+                var l = self.Axes[index];
+                var r = bound.Axes[index];
+            
+                if (l.Origin > r.To || r.Origin >= l.To)
+                {
+                    return false;
+                }
             }
         }
 
