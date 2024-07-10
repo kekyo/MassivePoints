@@ -76,9 +76,10 @@ public interface IQuadTreeUpdateSession<TValue> : IQuadTreeSession<TValue>
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
     ValueTask<long> RemoveBoundAsync(
-        Bound bound, bool performShrinking = false, CancellationToken ct = default);
+        Bound bound, bool isRightClosed = false, bool performShrinking = false, CancellationToken ct = default);
 }

@@ -54,6 +54,7 @@ public sealed class DbDataProviderConfiguration
     public readonly DbQueryDefinition selectPointsInclusiveQuery;
     public readonly DbQueryDefinition deletePointQuery;
     public readonly DbQueryDefinition deleteBoundQuery;
+    public readonly DbQueryDefinition deleteBoundInclusiveQuery;
 
     public DbDataProviderConfiguration(
         Bound entire,
@@ -151,6 +152,9 @@ public sealed class DbDataProviderConfiguration
             [ this.ParameterNameInArgument("node_id"), ..pointParameterNamesInArgument ]);
         this.deleteBoundQuery = new(
             $"DELETE FROM {this.Prefix}_node_points WHERE node_id={this.ParameterNameInQuery("node_id")} AND {nodePointColumnNamesInRangeWhereJoined}",
+            [ this.ParameterNameInArgument("node_id"), ..pointRangeParameterNamesInArgument ]);
+        this.deleteBoundInclusiveQuery = new(
+            $"DELETE FROM {this.Prefix}_node_points WHERE node_id={this.ParameterNameInQuery("node_id")} AND {nodePointColumnNamesInRangeInclusiveWhereJoined}",
             [ this.ParameterNameInArgument("node_id"), ..pointRangeParameterNamesInArgument ]);
     }
 
@@ -635,10 +639,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         }
 
         public async ValueTask<RemoveResults> RemoveBoundAsync(
-            long nodeId, Bound bound, bool includeRemains, CancellationToken ct)
+            long nodeId, Bound bound, bool isRightClosed, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
-                this.parent.configuration.deleteBoundQuery, ct);
+                isRightClosed ?
+                    this.parent.configuration.deleteBoundInclusiveQuery :
+                    this.parent.configuration.deleteBoundQuery,
+                ct);
             
             var args = new object[1 + bound.GetDimensionAxisCount() * 2];
             args[0] = nodeId;

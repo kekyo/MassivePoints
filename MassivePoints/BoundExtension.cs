@@ -14,6 +14,25 @@ using System;
 
 namespace MassivePoints;
 
+public readonly struct ChildBound
+{
+    /// <summary>
+    /// Child coordination range.
+    /// </summary>
+    public readonly Bound Bound;
+    
+    /// <summary>
+    /// Is this bound terminal? (end of bound on each axis)
+    /// </summary>
+    public readonly bool[] IsTerminals;
+
+    public ChildBound(Bound bound, bool[] isTerminals)
+    {
+        this.Bound = bound;
+        this.IsTerminals = isTerminals;
+    }
+}
+
 public static class BoundExtension
 {
     public static void Deconstruct(
@@ -61,6 +80,15 @@ public static class BoundExtension
         }
     }
 
+    public static void Deconstruct(
+        this ChildBound self,
+        out Bound bound,
+        out bool[] isTerminals)
+    {
+        bound = self.Bound;
+        isTerminals = self.IsTerminals;
+    }
+
     /// <summary>
     /// Get dimension axis count.
     /// </summary>
@@ -81,14 +109,15 @@ public static class BoundExtension
     /// Get child bounds.
     /// </summary>
     /// <returns>Child bounds</returns>
-    public static Bound[] GetChildBounds(
+    public static ChildBound[] GetChildBounds(
         this Bound self)
     {
-        var childBounds = new Bound[Bound.GetChildBoundCount(self.Axes.Length)];
+        var childBounds = new ChildBound[Bound.GetChildBoundCount(self.Axes.Length)];
         
         for (var childIndex = 0; childIndex < childBounds.Length; childIndex++)
         {
             var axes = new Axis[self.Axes.Length];
+            var isTerminals = new bool[self.Axes.Length];
             var halfBits = childIndex;
             
             for (var axisIndex = 0; axisIndex < axes.Length; axisIndex++, halfBits >>= 1)
@@ -101,6 +130,7 @@ public static class BoundExtension
                     axes[axisIndex] = new Axis(
                         halfOrigin,
                         axis.To);
+                    isTerminals[axisIndex] = true;
                 }
                 else
                 {
@@ -110,10 +140,21 @@ public static class BoundExtension
                 }
             }
             
-            childBounds[childIndex] = new Bound(axes);
+            childBounds[childIndex] = new ChildBound(new(axes), isTerminals);
         }
 
         return childBounds;
+    }
+
+    public static bool[] IsTerminalsAnd(
+        this ChildBound childBound, bool rhs)
+    {
+        var isTerminals = new bool[childBound.IsTerminals.Length];
+        for (var index = 0; index < isTerminals.Length; index++)
+        {
+            isTerminals[index] = childBound.IsTerminals[index] && rhs;
+        }
+        return isTerminals;
     }
 
     /// <summary>
@@ -189,27 +230,46 @@ public static class BoundExtension
     /// </summary>
     /// <param name="self">`Bound`</param>
     /// <param name="bound">Coordinate range</param>
-    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
-    /// <param name="inclusiveBoundTo">Include `bound` argument coordinate range `to` points</param>
+    /// <param name="isRightClosedEachAxis">Perform right-closed interval on coordinate range</param>
     /// <returns>True when intersected.</returns>
     public static bool IsIntersection(
-        this Bound self, Bound bound, bool isRightClosed, bool inclusiveBoundTo)
+        this Bound self, Bound bound, bool[]? isRightClosedEachAxis = null)
     {
         if (self.Axes.Length != bound.Axes.Length)
         {
             return false;
         }
 
-        if (inclusiveBoundTo)
+        if (isRightClosedEachAxis != null)
         {
+            if (self.Axes.Length != isRightClosedEachAxis.Length)
+            {
+                throw new ArgumentException("Could not interpret different dimension bound.");
+            }
+            
             for (var index = 0; index < self.Axes.Length; index++)
             {
                 var l = self.Axes[index];
                 var r = bound.Axes[index];
             
-                if (l.Origin > r.To || r.Origin > l.To)
+                if (l.Origin > r.To)
                 {
                     return false;
+                }
+                
+                if (isRightClosedEachAxis[index])
+                {
+                    if (r.Origin > l.To)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    if (r.Origin >= l.To)
+                    {
+                        return false;
+                    }
                 }
             }
         }

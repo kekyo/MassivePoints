@@ -461,13 +461,14 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
+        bool isRightClosed,
         bool performShrinking,
         CancellationToken ct)
     {
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
             return await this.providerSession.RemoveBoundAsync(
-                nodeId, targetBound, performShrinking, ct);
+                nodeId, targetBound, isRightClosed, performShrinking, ct);
         }
 
         var childIds = node.ChildIds;
@@ -485,7 +486,12 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 if (childBound.IsIntersection(targetBound, false, false))
                 {
                     var (rmd, rms) = await this.RemoveBoundAsync(
-                        childId, childBound, targetBound, performShrinking, ct);
+                        childId,
+                        childBound,
+                        targetBound,
+                        isRightClosed,
+                        performShrinking,
+                        ct);
                     removed += rmd;
                     remainsHint += rms;
                 }
@@ -517,7 +523,12 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 if (childBound.IsIntersection(targetBound, false, false))
                 {
                     var (rmd, _) = await this.RemoveBoundAsync(
-                        childId, childBound, targetBound, performShrinking, ct);
+                        childId,
+                        childBound,
+                        targetBound,
+                        isRightClosed,
+                        performShrinking,
+                        ct);
                     removed += rmd;
                 }
             }
@@ -530,14 +541,19 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// Remove coordinate point and values.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
+    /// <param name="isRightClosed">Perform right-closed interval on coordinate range</param>
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
     public async ValueTask<long> RemoveBoundAsync(
-        Bound bound, bool performShrinking = false, CancellationToken ct = default)
+        Bound bound, bool isRightClosed = false, bool performShrinking = false, CancellationToken ct = default)
     {
         var (removed, _) = await this.RemoveBoundAsync(
-            this.providerSession.RootId, this.providerSession.Entire, bound, performShrinking, ct);
+            this.providerSession.RootId,
+            this.providerSession.Entire,
+            bound,
+            isRightClosed,
+            performShrinking, ct);
         return removed;
     }
 }

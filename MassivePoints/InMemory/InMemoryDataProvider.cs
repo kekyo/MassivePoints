@@ -267,7 +267,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         }
 
         public async ValueTask<RemoveResults> RemoveBoundAsync(
-            int nodeId, Bound bound, bool _, CancellationToken ct)
+            int nodeId, Bound bound, bool isRightClosed, bool _, CancellationToken ct)
         {
             var points = this.parent.nodePoints[nodeId];
             var removed = 0;
@@ -275,7 +275,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             for (var index = points.Count - 1; index >= 0; index--)
             {
                 var entry = points[index];
-                if (bound.IsWithin(entry.Point, false))
+                if (bound.IsWithin(entry.Point, isRightClosed))
                 {
                     points.RemoveAt(index);
                     removed++;
