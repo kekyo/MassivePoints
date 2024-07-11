@@ -109,14 +109,14 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
         TNodeId nodeId, Point targetPoint, CancellationToken ct);
 
     ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupBoundAsync(
-        TNodeId nodeId, Bound targetBound, bool isRightClosed, CancellationToken ct);
+        TNodeId nodeId, Bound targetBound, bool[] isRightClosed, CancellationToken ct);
 
     IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        TNodeId nodeId, Bound targetBound, bool isRightClosed, CancellationToken ct);
+        TNodeId nodeId, Bound targetBound, bool[] isRightClosed, CancellationToken ct);
 
     ValueTask<RemoveResults> RemovePointAsync(
         TNodeId nodeId, Point point, bool includeRemains, CancellationToken ct);
 
     ValueTask<RemoveResults> RemoveBoundAsync(
-        TNodeId nodeId, Bound bound, bool isRightClosed, bool includeRemains, CancellationToken ct);
+        TNodeId nodeId, Bound bound, bool[] isRightClosed, bool includeRemains, CancellationToken ct);
 }

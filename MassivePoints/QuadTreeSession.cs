@@ -55,6 +55,16 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
     public Bound Entire =>
         this.providerSession.Entire;
 
+    private protected static bool[] GetRightClosed(int dimension, bool isRightClosed)
+    {
+        var rcs = new bool[dimension];
+        for (var index = 0; index < dimension; index++)
+        {
+            rcs[index] = isRightClosed;
+        }
+        return rcs;
+    }
+
     /////////////////////////////////////////////////////////////////////////////////
 
     private async ValueTask<IReadOnlyArray<PointItem<TValue>>> LookupPointAsync(
@@ -109,7 +119,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
-        bool isRightClosed,
+        bool[] isRightClosed,
         IExpandableArray<IReadOnlyArray<PointItem<TValue>>> results,
         CancellationToken ct)
     {
@@ -132,11 +142,12 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             Select((childBound, index) =>
             {
                 var isChildRightClosed = childBound.IsTerminalsAnd(isRightClosed);
-                if (childBound.Bound.IsIntersection(targetBound, isChildRightClosed))
+                if (childBound.Bound.IsIntersection(
+                    targetBound, isChildRightClosed))
                 {
                     var childId = childIds[index];
                     return this.LookupBoundAsync(
-                        childId, childBound.Bound, targetBound, isRightClosed, results, ct).
+                        childId, childBound.Bound, targetBound, isChildRightClosed, results, ct).
                         AsTask();
                 }
                 else
@@ -161,7 +172,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
             this.providerSession.RootId,
             this.providerSession.Entire,
             bound,
-            isRightClosed,
+            GetRightClosed(bound.GetDimensionAxisCount(), isRightClosed),
             results,
             ct);
         return results.SelectMany(r => r).ToArray();
@@ -177,7 +188,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
-        bool isRightClosed,
+        bool[] isRightClosed,
         CancellationToken ct)
     {
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
@@ -194,12 +205,14 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsIntersection(targetBound, false, isRightClosed))
+            var isChildRightClosed = childBound.IsTerminalsAnd(isRightClosed);
+            if (childBound.Bound.IsIntersection(
+                targetBound, isChildRightClosed))
             {
                 results = results?.Concat(await this.EnumerateBoundAsync(
-                    childId, childBound, targetBound, isRightClosed, ct), ct) ??
+                    childId, childBound.Bound, targetBound, isChildRightClosed, ct), ct) ??
                     await this.EnumerateBoundAsync(
-                        childId, childBound, targetBound, isRightClosed, ct);
+                        childId, childBound.Bound, targetBound, isChildRightClosed, ct);
             }
         }
         
@@ -222,7 +235,7 @@ public class QuadTreeSession<TValue, TNodeId> : IQuadTreeSession<TValue>
                 this.providerSession.RootId,
                 this.providerSession.Entire,
                 bound,
-                isRightClosed,
+                GetRightClosed(bound.GetDimensionAxisCount(), isRightClosed),
                 ct)).
             WithCancellation(ct))
         {

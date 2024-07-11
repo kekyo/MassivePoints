@@ -130,7 +130,6 @@ public static class BoundExtension
                     axes[axisIndex] = new Axis(
                         halfOrigin,
                         axis.To);
-                    isTerminals[axisIndex] = true;
                 }
                 else
                 {
@@ -138,6 +137,9 @@ public static class BoundExtension
                         axis.Origin,
                         halfOrigin);
                 }
+
+                var terminalMask = 0x01 << axisIndex;
+                isTerminals[axisIndex] = (childIndex & terminalMask) != 0;
             }
             
             childBounds[childIndex] = new ChildBound(new(axes), isTerminals);
@@ -153,6 +155,22 @@ public static class BoundExtension
         for (var index = 0; index < isTerminals.Length; index++)
         {
             isTerminals[index] = childBound.IsTerminals[index] && rhs;
+        }
+        return isTerminals;
+    }
+
+    public static bool[] IsTerminalsAnd(
+        this ChildBound childBound, bool[] rhs)
+    {
+        if (childBound.IsTerminals.Length != rhs.Length)
+        {
+            throw new ArgumentException();
+        }
+        
+        var isTerminals = new bool[childBound.IsTerminals.Length];
+        for (var index = 0; index < isTerminals.Length; index++)
+        {
+            isTerminals[index] = childBound.IsTerminals[index] && rhs[index];
         }
         return isTerminals;
     }

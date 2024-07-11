@@ -65,7 +65,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         int nodeDepth,
         CancellationToken ct)
     {
-        Bound[] childBounds;
+        ChildBound[] childBounds;
         
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
@@ -95,10 +95,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint, false))
+            if (childBound.Bound.IsWithin(targetPoint, false))
             {
                 return await this.InsertPointAsync(
-                    childId, childBound, targetPoint, value, nodeDepth + 1, ct);
+                    childId, childBound.Bound, targetPoint, value, nodeDepth + 1, ct);
             }
         }
 
@@ -130,7 +130,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         CancellationToken ct)
     {
         int offset = 0;
-        Bound[] childBounds;
+        ChildBound[] childBounds;
 
         if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
         {
@@ -165,7 +165,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var list = new ExpandableArray<PointItem<TValue>>();
                 var bound = childBounds[index];
-                list.AddRangePredicate(points, offset, pointItem => bound.IsWithin(pointItem.Point, false));
+                list.AddRangePredicate(points, offset, pointItem => bound.Bound.IsWithin(pointItem.Point, false));
                 splittedLists[index] = list;
             });
 
@@ -180,7 +180,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 var childBound = childBounds[index];
                 maxNodeDepth = Math.Max(maxNodeDepth,
                     await this.InsertPointsAsync(
-                        childId, childBound, list, bulkInsertBlockSize, nodeDepth + 1, ct));
+                        childId, childBound.Bound, list, bulkInsertBlockSize, nodeDepth + 1, ct));
             }
         }
         return maxNodeDepth;
@@ -359,9 +359,9 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            Debug.Assert(!childBound.IsWithin(targetPoint, false));
+            Debug.Assert(!childBound.Bound.IsWithin(targetPoint, false));
             remainsHint += await this.GetPointCountAsync(
-                childId, childBound, targetPoint, ct);
+                childId, childBound.Bound, targetPoint, ct);
 
             // HACK: If remains is exceeded, this node is terminated as there is no further need to examine it.
             if (remainsHint >= this.providerSession.MaxNodePoints)
@@ -398,10 +398,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint, false))
+                if (childBound.Bound.IsWithin(targetPoint, false))
                 {
                     var (rmd, rms) = await this.RemovePointAsync(
-                        childId, childBound, targetPoint, performShrinking, ct);
+                        childId, childBound.Bound, targetPoint, performShrinking, ct);
                     removed += rmd;
                     remainsHint += rms;
                 }
@@ -411,7 +411,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                     if (remainsHint < this.providerSession.MaxNodePoints)
                     {
                         remainsHint += await this.GetPointCountAsync(
-                            childId, childBound, targetPoint, ct);
+                            childId, childBound.Bound, targetPoint, ct);
                     }
                 }
             }
@@ -429,10 +429,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint, false))
+                if (childBound.Bound.IsWithin(targetPoint, false))
                 {
                     return await this.RemovePointAsync(
-                        childId, childBound, targetPoint, performShrinking, ct);
+                        childId, childBound.Bound, targetPoint, performShrinking, ct);
                 }
             }
             return new(0, -1);
@@ -461,7 +461,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         TNodeId nodeId,
         Bound nodeBound,
         Bound targetBound,
-        bool isRightClosed,
+        bool[] isRightClosed,
         bool performShrinking,
         CancellationToken ct)
     {
@@ -483,13 +483,15 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound, false, false))
+                var isChildRightClosed = childBound.IsTerminalsAnd(isRightClosed);
+                if (childBound.Bound.IsIntersection(
+                        targetBound, isChildRightClosed))
                 {
                     var (rmd, rms) = await this.RemoveBoundAsync(
                         childId,
-                        childBound,
+                        childBound.Bound,
                         targetBound,
-                        isRightClosed,
+                        isChildRightClosed,
                         performShrinking,
                         ct);
                     removed += rmd;
@@ -520,13 +522,14 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound, false, false))
+                var isChildRightClosed = childBound.IsTerminalsAnd(isRightClosed);
+                if (childBound.Bound.IsIntersection(targetBound, isChildRightClosed))
                 {
                     var (rmd, _) = await this.RemoveBoundAsync(
                         childId,
-                        childBound,
+                        childBound.Bound,
                         targetBound,
-                        isRightClosed,
+                        isChildRightClosed,
                         performShrinking,
                         ct);
                     removed += rmd;
@@ -552,7 +555,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             this.providerSession.RootId,
             this.providerSession.Entire,
             bound,
-            isRightClosed,
+            GetRightClosed(bound.GetDimensionAxisCount(), isRightClosed),
             performShrinking, ct);
         return removed;
     }

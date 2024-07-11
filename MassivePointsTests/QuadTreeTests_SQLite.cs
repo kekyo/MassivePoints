@@ -542,7 +542,7 @@ public sealed class QuadTreeTests_SQLite
             
             foreach (var childBound in childBounds)
             {
-                removed += await session.RemoveBoundAsync(childBound, performShrinking);
+                removed += await session.RemoveBoundAsync(childBound.Bound, performShrinking);
             }
             Assert.That(removed, Is.EqualTo(count));
 
