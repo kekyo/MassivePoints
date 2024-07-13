@@ -24,9 +24,9 @@ public sealed class QuadTreeNode<TNodeId>
     // Y  +-------------+-------------+
     // |  |             |             |
     // |  | BottomLeft  | BottomRight |
-    // v  | ChildIds[2] | ChildIds[3] |
+    // |  | ChildIds[2] | ChildIds[3] |
     // |  |             |             |
-    // +  +-------------+-------------+
+    // v  +-------------+-------------+
 
     /// <summary>
     /// Child node id list.

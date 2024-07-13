@@ -111,14 +111,35 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         /// </summary>
         public int RootId => 0;
 
+        /// <summary>
+        /// Get information about the node.
+        /// </summary>
+        /// <param name="nodeId">Node ID</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Node information if available</returns>
         public ValueTask<QuadTreeNode<int>?> GetNodeAsync(
             int nodeId, CancellationToken ct) =>
             new(this.parent.nodes.TryGetValue(nodeId, out var node) ? node : null);
 
+        /// <summary>
+        /// Get number of coordinate points on the node.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Coordinate point count</returns>
         public ValueTask<int> GetPointCountAsync(
             int nodeId, CancellationToken ct) =>
             new(this.parent.nodePoints.TryGetValue(nodeId, out var points) ? points.Count : 0);
 
+        /// <summary>
+        /// Inserts the specified coordinate points.
+        /// </summary>
+        /// <param name="nodeId">Node ID</param>
+        /// <param name="points">Coordinate points</param>
+        /// <param name="offset">Coordinate point list offset</param>
+        /// <param name="isForceInsert">Force insert all points</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Inserted points</returns>
         public ValueTask<int> InsertPointsAsync(
             int nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct)
         {
@@ -144,6 +165,13 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return new(insertCount);
         }
 
+        /// <summary>
+        /// Distribute coordinate points into the new child nodes.
+        /// </summary>
+        /// <param name="nodeId">From node id</param>
+        /// <param name="toBounds">To child bounds</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Updated node information</returns>
         public async ValueTask<QuadTreeNode<int>> DistributePointsAsync(
             int nodeId, Bound[] toBounds, CancellationToken ct)
         {
@@ -184,6 +212,13 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return node;
         }
 
+        /// <summary>
+        /// Aggregate coordinate points on child nodes to a node.
+        /// </summary>
+        /// <param name="nodeIds">Child node ids</param>
+        /// <param name="toBound">Target bound</param>
+        /// <param name="toNodeId">Target node id</param>
+        /// <param name="ct">`CancellationToken`</param>
         public ValueTask AggregatePointsAsync(
             int[] nodeIds, Bound toBound, int toNodeId, CancellationToken ct)
         {
@@ -206,14 +241,35 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return default;
         }
 
+        /// <summary>
+        /// Lookup coordinate points from a exact point.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetPoint">Target point</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Got coordinate points</returns>
         public ValueTask<PointItem<TValue>[]> LookupPointAsync(
             int nodeId, Point targetPoint, CancellationToken ct) =>
             new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => targetPoint.Equals(entry.Point)).ToArray()));
 
+        /// <summary>
+        /// Lookup coordinate points from coordinate range.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetBound">Target coordinate range</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Got coordinate points</returns>
         public ValueTask<PointItem<TValue>[]> LookupBoundAsync(
             int nodeId, Bound targetBound, CancellationToken ct) =>
             new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => targetBound.IsWithin(entry.Point)).ToArray()));
 
+        /// <summary>
+        /// Lookup and streaming coordinate points from coordinate range.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetBound">Target coordinate range</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Coordinate points asynchronous iterator</returns>
         public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
             int nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
         {
@@ -226,6 +282,14 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             }
         }
 
+        /// <summary>
+        /// Remove a coordinate point.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="point">Target coordinate point</param>
+        /// <param name="_">Include coordinate point remains count in result if true</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Removed count and remains count</returns>
         public async ValueTask<RemoveResults> RemovePointAsync(
             int nodeId, Point point, bool _, CancellationToken ct)
         {
@@ -245,6 +309,14 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             return new(removed, points.Count);
         }
 
+        /// <summary>
+        /// Remove coordinate points.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="bound">Target coordinate bound</param>
+        /// <param name="_">Include coordinate point remains count in result if true</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Removed count and remains count</returns>
         public async ValueTask<RemoveResults> RemoveBoundAsync(
             int nodeId, Bound bound, bool _, CancellationToken ct)
         {

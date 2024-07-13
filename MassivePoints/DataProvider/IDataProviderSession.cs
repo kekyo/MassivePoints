@@ -84,6 +84,12 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     ValueTask<QuadTreeNode<TNodeId>?> GetNodeAsync(
         TNodeId nodeId, CancellationToken ct);
 
+    /// <summary>
+    /// Get number of coordinate points on the node.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Coordinate point count</returns>
     ValueTask<int> GetPointCountAsync(
         TNodeId nodeId, CancellationToken ct);
 
@@ -99,24 +105,75 @@ public interface IDataProviderSession<TValue, TNodeId> : IAsyncDisposable
     ValueTask<int> InsertPointsAsync(
         TNodeId nodeId, IReadOnlyArray<PointItem<TValue>> points, int offset, bool isForceInsert, CancellationToken ct);
 
+    /// <summary>
+    /// Distribute coordinate points into the new child nodes.
+    /// </summary>
+    /// <param name="nodeId">From node id</param>
+    /// <param name="toBounds">To child bounds</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Updated node information</returns>
     ValueTask<QuadTreeNode<TNodeId>> DistributePointsAsync(
         TNodeId nodeId, Bound[] toBounds, CancellationToken ct);
 
+    /// <summary>
+    /// Aggregate coordinate points on child nodes to a node.
+    /// </summary>
+    /// <param name="nodeIds">Child node ids</param>
+    /// <param name="toBound">Target bound</param>
+    /// <param name="toNodeId">Target node id</param>
+    /// <param name="ct">`CancellationToken`</param>
     ValueTask AggregatePointsAsync(
         TNodeId[] nodeIds, Bound toBound, TNodeId toNodeId, CancellationToken ct);
 
+    /// <summary>
+    /// Lookup coordinate points from a exact point.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="targetPoint">Target point</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Got coordinate points</returns>
     ValueTask<PointItem<TValue>[]> LookupPointAsync(
         TNodeId nodeId, Point targetPoint, CancellationToken ct);
 
+    /// <summary>
+    /// Lookup coordinate points from coordinate range.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="targetBound">Target coordinate range</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Got coordinate points</returns>
     ValueTask<PointItem<TValue>[]> LookupBoundAsync(
         TNodeId nodeId, Bound targetBound, CancellationToken ct);
 
+    /// <summary>
+    /// Lookup and streaming coordinate points from coordinate range.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="targetBound">Target coordinate range</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Coordinate points asynchronous iterator</returns>
     IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         TNodeId nodeId, Bound targetBound, CancellationToken ct);
 
+    /// <summary>
+    /// Remove a coordinate point.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="point">Target coordinate point</param>
+    /// <param name="includeRemains">Include coordinate point remains count in result if true</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Removed count and remains count</returns>
     ValueTask<RemoveResults> RemovePointAsync(
         TNodeId nodeId, Point point, bool includeRemains, CancellationToken ct);
 
+    /// <summary>
+    /// Remove coordinate points.
+    /// </summary>
+    /// <param name="nodeId">Target node id</param>
+    /// <param name="bound">Target coordinate bound</param>
+    /// <param name="includeRemains">Include coordinate point remains count in result if true</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Removed count and remains count</returns>
     ValueTask<RemoveResults> RemoveBoundAsync(
         TNodeId nodeId, Bound bound, bool includeRemains, CancellationToken ct);
 }
