@@ -389,7 +389,7 @@ public static class Program
                 {
                     case Node node:
                         var points = await session.LookupPointAsync(
-                            new(node.Longitude!.Value, node.Latitude!.Value));
+                            new(node.Longitude!.Value, node.Latitude!.Value), ct);
                         if (!points.Any(p => p.Value == node.Id!))
                         {
                             throw new InvalidDataException(

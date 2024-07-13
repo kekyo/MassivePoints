@@ -16,10 +16,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-// Async method lacks 'await' operators and will run synchronously
-#pragma warning disable CS1998
-// The EnumeratorCancellationAttribute will have no effect. The attribute is only effective on a parameter of type CancellationToken in an async-iterator method returning IAsyncEnumerable
-#pragma warning disable CS8424
+// Parameter has no matching param tag in the XML comment (but other parameters do)
+#pragma warning disable CS1573
 
 namespace MassivePoints;
 
@@ -29,39 +27,22 @@ namespace MassivePoints;
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
 public abstract class QuadTreeSession<TValue> : IAsyncDisposable
 {
+    internal readonly InternalQuadTreeSession<TValue> internalSession;
+
+    private protected QuadTreeSession(InternalQuadTreeSession<TValue> internalSession) =>
+        this.internalSession = internalSession;
+
     /// <summary>
     /// The overall range of the coordinate points managed.
     /// </summary>
-    public abstract Bound Entire { get; }
+    public Bound Entire =>
+        this.internalSession.Entire;
 
-    public abstract ValueTask DisposeAsync();
-    
     /// <summary>
-    /// Lookup values with a coordinate point.
+    /// Dispose method.
     /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
-    public abstract ValueTask<PointItem<TValue>[]> LookupPointAsync(
-        Point point, CancellationToken ct = default);
-    
-    /// <summary>
-    /// Lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
-    public abstract ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct = default);
-    
-    /// <summary>
-    /// Streaming lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values asynchronous iterator</returns>
-    public abstract IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, CancellationToken ct = default);
+    public ValueTask DisposeAsync() =>
+        this.internalSession.DisposeAsync();
 }
 
 /// <summary>
@@ -72,58 +53,48 @@ public abstract class QuadTreeSession<TValue> : IAsyncDisposable
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class QuadTreeSession<TValue, TNodeId> : QuadTreeSession<TValue>
 {
-    private readonly InternalQuadTreeSession<TValue, TNodeId> session;
-
     /// <summary>
     /// Constructor.
     /// </summary>
     /// <param name="providerSession">Data provider session.</param>
-    public QuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
-        this.session = new(providerSession);
+    public QuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) :
+        base(new InternalQuadTreeSession<TValue, TNodeId>(providerSession))
+    {
+    }
+}
 
-    /// <summary>
-    /// The overall range of the coordinate points managed.
-    /// </summary>
-    public override Bound Entire =>
-        this.session.Entire;
-
-    /////////////////////////////////////////////////////////////////////////////////
-
-    /// <summary>
-    /// Dispose method.
-    /// </summary>
-    public override ValueTask DisposeAsync() =>
-        this.session.DisposeAsync();
-
-    /////////////////////////////////////////////////////////////////////////////////
-
+public static class QuadTreeSessionExtension
+{
     /// <summary>
     /// Lookup values with a coordinate point.
     /// </summary>
     /// <param name="point">Coordinate point</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    public override ValueTask<PointItem<TValue>[]> LookupPointAsync(
+    public static ValueTask<PointItem<TValue>[]> LookupPointAsync<TValue>(
+        this QuadTreeSession<TValue> self,
         Point point, CancellationToken ct = default) =>
-        this.session.LookupPointAsync(point, ct);
-
+        self.internalSession.LookupPointAsync(point, ct);
+    
     /// <summary>
     /// Lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    public override ValueTask<PointItem<TValue>[]> LookupBoundAsync(
+    public static ValueTask<PointItem<TValue>[]> LookupBoundAsync<TValue>(
+        this QuadTreeSession<TValue> self,
         Bound bound, CancellationToken ct = default) =>
-        this.session.LookupBoundAsync(bound, ct);
-
+        self.internalSession.LookupBoundAsync(bound, ct);
+    
     /// <summary>
     /// Streaming lookup values with coordinate range.
     /// </summary>
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
-    public override IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, [EnumeratorCancellation] CancellationToken ct = default) =>
-        this.session.EnumerateBoundAsync(bound, ct);
+    public static IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync<TValue>(
+        this QuadTreeSession<TValue> self,
+        Bound bound, CancellationToken ct = default) =>
+        self.internalSession.EnumerateBoundAsync(bound, ct);
 }

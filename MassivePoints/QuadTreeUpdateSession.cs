@@ -15,10 +15,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-// Async method lacks 'await' operators and will run synchronously
-#pragma warning disable CS1998
-// The EnumeratorCancellationAttribute will have no effect. The attribute is only effective on a parameter of type CancellationToken in an async-iterator method returning IAsyncEnumerable
-#pragma warning disable CS8424
+// Parameter has no matching param tag in the XML comment (but other parameters do)
+#pragma warning disable CS1573
 
 namespace MassivePoints;
 
@@ -26,69 +24,13 @@ namespace MassivePoints;
 /// QuadTree update session abstraction interface.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public abstract class QuadTreeUpdateSession<TValue> : QuadTreeSession<TValue>
+public abstract class QuadTreeUpdateSession<TValue> :
+    QuadTreeSession<TValue>
 {
-    /// <summary>
-    /// Flush partially data.
-    /// </summary>
-    public abstract ValueTask FlushAsync();
-
-    /// <summary>
-    /// Finish the session.
-    /// </summary>
-    public abstract ValueTask FinishAsync();
-    
-    /// <summary>
-    /// Insert a coordinate point.
-    /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="value">Related value</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>A node depth value where placed the coordinate point</returns>
-    /// <remarks>The node depth value indicates how deeply the added coordinate points are placed in the node depth.
-    /// This value is not used directly, but can be used as a performance indicator.</remarks>
-    public abstract ValueTask<int> InsertPointAsync(
-        Point point, TValue value, CancellationToken ct = default);
-
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public abstract ValueTask<int> InsertPointsAsync(
-        IEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
-
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public abstract ValueTask<int> InsertPointsAsync(
-        IAsyncEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
-
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="point">A coordinate point</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
-    public abstract ValueTask<int> RemovePointAsync(
-        Point point, bool performShrinking = false, CancellationToken ct = default);
-    
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
-    public abstract ValueTask<long> RemoveBoundAsync(
-        Bound bound, bool performShrinking = false, CancellationToken ct = default);
+    private protected QuadTreeUpdateSession(InternalQuadTreeSession<TValue> internalSession) :
+        base(internalSession)
+    {
+    }
 }
 
 /// <summary>
@@ -100,74 +42,31 @@ public abstract class QuadTreeUpdateSession<TValue> : QuadTreeSession<TValue>
 public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     QuadTreeUpdateSession<TValue>
 {
-    private readonly InternalQuadTreeSession<TValue, TNodeId> session;
-
     /// <summary>
     /// Constructor.
     /// </summary>
     /// <param name="providerSession">Data provider session.</param>
-    public QuadTreeUpdateSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
-        this.session = new(providerSession);
-        
-    /// <summary>
-    /// The overall range of the coordinate points managed.
-    /// </summary>
-    public override Bound Entire =>
-        this.session.Entire;
+    public QuadTreeUpdateSession(IDataProviderSession<TValue, TNodeId> providerSession) :
+        base(new InternalQuadTreeSession<TValue, TNodeId>(providerSession))
+    {
+    }
+}
 
-    /////////////////////////////////////////////////////////////////////////////////
-
-    /// <summary>
-    /// Dispose method.
-    /// </summary>
-    public override ValueTask DisposeAsync() =>
-        this.session.DisposeAsync();
-
+public static class QuadTreeUpdateSessionExtension
+{
     /// <summary>
     /// Flush partially data.
     /// </summary>
-    public override ValueTask FlushAsync() =>
-        this.session.FlushAsync();
+    public static ValueTask FlushAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self) =>
+        self.internalSession.FlushAsync();
 
     /// <summary>
     /// Finish the session.
     /// </summary>
-    public override ValueTask FinishAsync() =>
-        this.session.FinishAsync();
-    
-    /////////////////////////////////////////////////////////////////////////////////
-
-    /// <summary>
-    /// Lookup values with a coordinate point.
-    /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
-    public override ValueTask<PointItem<TValue>[]> LookupPointAsync(
-        Point point, CancellationToken ct = default) =>
-        this.session.LookupPointAsync(point, ct);
-
-    /// <summary>
-    /// Lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
-    public override ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct = default) =>
-        this.session.LookupBoundAsync(bound, ct);
-
-    /// <summary>
-    /// Streaming lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values asynchronous iterator</returns>
-    public override IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, [EnumeratorCancellation] CancellationToken ct = default) =>
-        this.session.EnumerateBoundAsync(bound, ct);
-
-    /////////////////////////////////////////////////////////////////////////////////
+    public static ValueTask FinishAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self) =>
+        self.internalSession.FinishAsync();
 
     /// <summary>
     /// Insert a coordinate point.
@@ -175,12 +74,13 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="point">Coordinate point</param>
     /// <param name="value">Related value</param>
     /// <param name="ct">`CancellationToken`</param>
-    /// <returns>A depth value where placed the coordinate point</returns>
-    /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
+    /// <returns>A node depth value where placed the coordinate point</returns>
+    /// <remarks>The node depth value indicates how deeply the added coordinate points are placed in the node depth.
     /// This value is not used directly, but can be used as a performance indicator.</remarks>
-    public override ValueTask<int> InsertPointAsync(
+    public static ValueTask<int> InsertPointAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self,
         Point point, TValue value, CancellationToken ct = default) =>
-        this.session.InsertPointAsync(point, value, ct);
+        self.internalSession.InsertPointAsync(point, value, ct);
 
     /// <summary>
     /// Bulk insert coordinate points.
@@ -189,11 +89,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public override ValueTask<int> InsertPointsAsync(
-        IEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default) =>
-        this.session.InsertPointsAsync(points, bulkInsertBlockSize, ct);
+    public static ValueTask<int> InsertPointsAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self,
+        IEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default) =>
+        self.internalSession.InsertPointsAsync(points, bulkInsertBlockSize, ct);
 
     /// <summary>
     /// Bulk insert coordinate points.
@@ -202,11 +101,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public override ValueTask<int> InsertPointsAsync(
-        IAsyncEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default) =>
-        this.session.InsertPointsAsync(points, bulkInsertBlockSize, ct);
+    public static ValueTask<int> InsertPointsAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self,
+        IAsyncEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default) =>
+        self.internalSession.InsertPointsAsync(points, bulkInsertBlockSize, ct);
 
     /// <summary>
     /// Remove coordinate point and values.
@@ -215,10 +113,11 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    public override ValueTask<int> RemovePointAsync(
+    public static ValueTask<int> RemovePointAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self,
         Point point, bool performShrinking = false, CancellationToken ct = default) =>
-        this.session.RemovePointAsync(point, performShrinking, ct);
-
+        self.internalSession.RemovePointAsync(point, performShrinking, ct);
+    
     /// <summary>
     /// Remove coordinate point and values.
     /// </summary>
@@ -226,7 +125,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
     /// <param name="performShrinking">Index shrinking is performed or not</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Count of removed coordinate points</returns>
-    public override ValueTask<long> RemoveBoundAsync(
+    public static ValueTask<long> RemoveBoundAsync<TValue>(
+        this QuadTreeUpdateSession<TValue> self,
         Bound bound, bool performShrinking = false, CancellationToken ct = default) =>
-        this.session.RemoveBoundAsync(bound, performShrinking, ct);
+        self.internalSession.RemoveBoundAsync(bound, performShrinking, ct);
 }
