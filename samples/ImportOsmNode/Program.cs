@@ -86,7 +86,7 @@ public static class Program
     /// <param name="maxNodePoints">Maximum points of each node</param>
     /// <param name="ct">CancellationToken</param>
     /// <returns>QuadTree instance</returns>
-    private static async ValueTask<IQuadTree<long>> CreateQuadTreeAsync(
+    private static async ValueTask<QuadTree<long>> CreateQuadTreeAsync(
         string dbFileName, bool isReadOnly, int maxNodePoints, CancellationToken ct)
     {
 #if true

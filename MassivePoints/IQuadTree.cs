@@ -18,14 +18,14 @@ namespace MassivePoints;
 /// QuadTree abstraction interface.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public interface IQuadTree<TValue>
+public abstract class QuadTree<TValue>
 {
     /// <summary>
     /// Begin a reading session.
     /// </summary>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>The reading session</returns>
-    ValueTask<IQuadTreeSession<TValue>> BeginSessionAsync(
+    public abstract ValueTask<QuadTreeSession<TValue>> BeginSessionAsync(
         CancellationToken ct = default);
     
     /// <summary>
@@ -33,6 +33,6 @@ public interface IQuadTree<TValue>
     /// </summary>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>The update session</returns>
-    ValueTask<IQuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+    public abstract ValueTask<QuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
         CancellationToken ct = default);
 }

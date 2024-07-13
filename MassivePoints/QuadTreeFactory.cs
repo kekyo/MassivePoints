@@ -67,7 +67,7 @@ public static class QuadTreeFactoryExtension
     /// <param name="width">Entire coordinate range</param>
     /// <param name="height">Entire coordinate range</param>
     /// <returns>2D coordinate points QuadTree instance</returns>
-    public static IQuadTree<TValue> Create<TValue>(
+    public static QuadTree<TValue> Create<TValue>(
         this QuadTreeFactory _,
         double width, double height, int maxNodePoints = 65536) =>
         new QuadTree<TValue, int>(
@@ -81,7 +81,7 @@ public static class QuadTreeFactoryExtension
     /// <param name="height">Entire coordinate range</param>
     /// <param name="depth">Entire coordinate range</param>
     /// <returns>3D coordinate points QuadTree instance</returns>
-    public static IQuadTree<TValue> Create<TValue>(
+    public static QuadTree<TValue> Create<TValue>(
         this QuadTreeFactory _,
         double width, double height, double depth, int maxNodePoints = 65536) =>
         new QuadTree<TValue, int>(
@@ -93,7 +93,7 @@ public static class QuadTreeFactoryExtension
     /// <typeparam name="TValue">Coordinate point related value type</typeparam>
     /// <param name="entire">Entire coordinate range</param>
     /// <returns>QuadTree instance</returns>
-    public static IQuadTree<TValue> Create<TValue>(
+    public static QuadTree<TValue> Create<TValue>(
         this QuadTreeFactory _,
         Bound entire, int maxNodePoints = 65536) =>
         new QuadTree<TValue, int>(
@@ -106,7 +106,7 @@ public static class QuadTreeFactoryExtension
     /// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
     /// <param name="provider">Data provider</param>
     /// <returns>QuadTree instance</returns>
-    public static IQuadTree<TValue> Create<TValue, TNodeId>(
+    public static QuadTree<TValue> Create<TValue, TNodeId>(
         this QuadTreeFactory _,
         IDataProvider<TValue, TNodeId> provider) =>
         new QuadTree<TValue, TNodeId>(provider);

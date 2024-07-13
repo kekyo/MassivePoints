@@ -18,20 +18,22 @@ namespace MassivePoints;
 /// QuadTree reading session abstraction interface.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
-public interface IQuadTreeSession<TValue> : IAsyncDisposable
+public abstract class QuadTreeSession<TValue> : IAsyncDisposable
 {
     /// <summary>
     /// The overall range of the coordinate points managed.
     /// </summary>
-    Bound Entire { get; }
+    public abstract Bound Entire { get; }
 
+    public abstract ValueTask DisposeAsync();
+    
     /// <summary>
     /// Lookup values with a coordinate point.
     /// </summary>
     /// <param name="point">Coordinate point</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    ValueTask<PointItem<TValue>[]> LookupPointAsync(
+    public abstract ValueTask<PointItem<TValue>[]> LookupPointAsync(
         Point point, CancellationToken ct = default);
     
     /// <summary>
@@ -40,7 +42,7 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values</returns>
-    ValueTask<PointItem<TValue>[]> LookupBoundAsync(
+    public abstract ValueTask<PointItem<TValue>[]> LookupBoundAsync(
         Bound bound, CancellationToken ct = default);
     
     /// <summary>
@@ -49,6 +51,6 @@ public interface IQuadTreeSession<TValue> : IAsyncDisposable
     /// <param name="bound">Coordinate range</param>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>Point and values asynchronous iterator</returns>
-    IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
+    public abstract IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
         Bound bound, CancellationToken ct = default);
 }

@@ -30,11 +30,11 @@ using MassivePoints;
 // and pair of value type (string) on the memory.
 double width = 100000.0;
 double height = 100000.0;
-IQuadTree<string> quadTree =
+QuadTree<string> quadTree =
     QuadTree.Factory.Create<string>(width, height);
 
 // Begin a session for update.
-await using IQuadTreeSession<string> session =
+await using QuadTreeSession<string> session =
     await quadTree.BeginSessionAsync(true);
 
 // Insert a lot of random 2D coordinates.
@@ -103,7 +103,7 @@ using MassivePoints;
 // and pair of value type (string) on the memory.
 double width = 100000.0;
 double height = 100000.0;
-IQuadTree<string> quadTree = QuadTree.Factory.
+QuadTree<string> quadTree = QuadTree.Factory.
     Create<string>(width, height);          // TValue = string
 
 // Create QuadTree (OctaTree) dictionary with 3D coordinate bound
@@ -111,7 +111,7 @@ IQuadTree<string> quadTree = QuadTree.Factory.
 double width = 100000.0;
 double height = 100000.0;
 double depth = 100000.0;
-IQuadTree<string> octaTree = QuadTree.Factory.
+QuadTree<string> octaTree = QuadTree.Factory.
     Create<string>(width, height, depth);   // TValue = string
 ```
 
@@ -152,7 +152,7 @@ var provider = QuadTree.Factory.CreateProvider<string>(
 await provider.CreateSQLiteTablesAsync(false);
 
 // Create QuadTree dictionary.
-IQuadTree<string> quadTree = QuadTree.Factory.Create(provider);
+QuadTree<string> quadTree = QuadTree.Factory.Create(provider);
 ```
 
 Even when using ADO.NET, it is possible to handle dimensions greater than three dimensions.
@@ -169,7 +169,7 @@ You have to use `BeginSessionAsync()` to start QuadTree manipulation:
 
 ```csharp
 // Begin a reading session.
-await using (IQuadTreeSession<string> session =
+await using (QuadTreeSession<string> session =
     await quadTree.BeginSessionAsync())
 {
     // (Do lookup manipulation)
@@ -181,7 +181,7 @@ Or, use `BeginUpdateSessionAsync()` to start updating QuadTree manipulation:
 
 ```csharp
 // Begin a update session.
-await using (IQuadTreeUpdateSession<string> session =
+await using (QuadTreeUpdateSession<string> session =
     await quadTree.BeginUpdateSessionAsync())
 {
     // (Do insert, lookup and remove manipulation)
