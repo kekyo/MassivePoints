@@ -27,7 +27,7 @@ It's very easy to use:
 using MassivePoints;
 
 // Create QuadTree dictionary with 2D coordinate bound
-// and pair of value type on the memory.
+// and pair of value type (string) on the memory.
 double width = 100000.0;
 double height = 100000.0;
 IQuadTree<string> quadTree =
@@ -44,7 +44,9 @@ for (var index = 0; index < count; index++)
 {
     double x = r.Next(0, width - 1);
     double y = r.Next(0, height - 1);
-    await session.InsertPointAsync(new Point(x, y), $"Point{index}");
+    await session.InsertPointAsync(
+        new Point(x, y),    // x, y
+        $"Point{index}");   // value
 }
 
 // Extract values by specifying 2D coordinate range.
@@ -98,17 +100,19 @@ You can use the factory to easy to use QuadTree:
 using MassivePoints;
 
 // Create QuadTree dictionary with 2D coordinate bound
-// and pair of value type on the memory.
+// and pair of value type (string) on the memory.
 double width = 100000.0;
 double height = 100000.0;
-IQuadTree<string> quadTree = QuadTree.Factory.Create<string>(width, height);
+IQuadTree<string> quadTree = QuadTree.Factory.
+    Create<string>(width, height);          // TValue = string
 
 // Create QuadTree (OctaTree) dictionary with 3D coordinate bound
-// and pair of value type on the memory.
+// and pair of value type (string) on the memory.
 double width = 100000.0;
 double height = 100000.0;
 double depth = 100000.0;
-IQuadTree<string> octaTree = QuadTree.Factory.Create<string>(width, height, depth);
+IQuadTree<string> octaTree = QuadTree.Factory.
+    Create<string>(width, height, depth);   // TValue = string
 ```
 
 If you want to use a dimension that goes over three dimensions, use `new Bound(...)` to specify it.
@@ -135,7 +139,12 @@ var connectionString = new SQLiteConnectionStringBuilder()
 double width = 100000.0;   // 2D coordinate bound.
 double height = 100000.0;
 var provider = QuadTree.Factory.CreateProvider<string>(
-    () => new SQLiteConnection(connectionString),
+    async () =>   // ADO.NET connection factory
+    {
+        var connection = new SQLiteConnection(connectionString);
+        await connection.OpenAsync();
+        return connection;
+    },
     new DbDataProviderConfiguration(),
     new Bound(width, height));
 
@@ -203,7 +212,9 @@ You can insert a coordinate point and a value to associate with it using `Insert
 // Insert a random 2D coordinate point.
 var r = new Random();
 Point point = new Point(r.Next(0, width - 1), r.Next(0, height - 1));
-await session.InsertPointAsync(point, $"Point{index}");
+await session.InsertPointAsync(
+    point,              // x, y
+    $"Point{index}");   // value
 ```
 
 If you want to insert a N-dimensional coordinate point,
@@ -220,7 +231,9 @@ var r = new Random();
 await session.InsertPointsAsync(
     Enumerable.Range(0, count).
     Select(_ => PointItem.Create(   // Makes pair of a point and a value.
-        r.Next(0, width - 1), r.Next(0, height - 1), $"Point{index}")));
+        r.Next(0, width - 1),    // x
+        r.Next(0, height - 1),   // y
+        $"Point{index}")));      // value
 ```
 
 When performing bulk insertion,
@@ -251,7 +264,7 @@ With coordinate range by `LookupBoundAsync()`:
 // Extract values by specifying coordinate range.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1 (exclusive, right-opened)
 
 foreach (PointItem<string> entry in
     await session.LookupBoundAsync(targetBound))
@@ -259,6 +272,10 @@ foreach (PointItem<string> entry in
     Console.WriteLine($"{entry.Point}: {entry.Value}");
 }
 ```
+
+Note that the coordinate range is right-open interval.
+
+* ex: `[30000.0,40000.0 - 65000.0,63000.0)`
 
 ### Streaming lookup
 
@@ -269,7 +286,7 @@ Use `EnumerateBoundAsync()`:
 // Extract values on asynchronous iterator.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1 (exclusive, right-opened)
 
 await foreach (PointItem<string> entry in
     session.EnumerateBoundAsync(targetBound))
@@ -298,7 +315,7 @@ With coordinate range by `RemoveBoundAsync()`:
 // Remove coordinate range.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1 (exclusive, right-opened)
 
 long removed = await session.RemoveBoundAsync(targetBound);
 ```
@@ -330,7 +347,7 @@ While understanding this drawback, set the `performShrinking` argument to `true`
 // Remove coordinate range with index shrinking.
 Bound targetBound = new Bound(
     30000.0, 40000.0,                       // x0, y0
-    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1
+    30000.0 + 35000.0, 40000.0 + 23000.0);  // x1, y1 (exclusive, right-opened)
 
 long removed = await session.RemoveBoundAsync(
     targetBound, performShrinking: true);
@@ -376,6 +393,8 @@ Apache-v2
 
 ## History
 
+* 0.13.0:
+  * Supported asynchronous factory for database connection.
 * 0.12.0:
   * Fixed boundary coordinate precision on calculation for splitting.
   * Fixed the globe bound.
