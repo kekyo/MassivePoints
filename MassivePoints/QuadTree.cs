@@ -18,6 +18,29 @@ using MassivePoints.DataProvider;
 
 namespace MassivePoints;
 
+/// <summary>
+/// QuadTree abstraction interface.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
+public abstract class QuadTree<TValue>
+{
+    /// <summary>
+    /// Begin a reading session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The reading session</returns>
+    public abstract ValueTask<QuadTreeSession<TValue>> BeginSessionAsync(
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// Begin an update session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The update session</returns>
+    public abstract ValueTask<QuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+        CancellationToken ct = default);
+}
+
 public sealed class QuadTree<TValue, TNodeId> : QuadTree<TValue>
 {
     private readonly IDataProvider<TValue, TNodeId> provider;

@@ -30,41 +30,24 @@ namespace MassivePoints.Internal;
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
 /// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
-[EditorBrowsable(EditorBrowsableState.Advanced)]
 internal sealed class InternalQuadTreeSession<TValue, TNodeId>
 {
     private readonly IDataProviderSession<TValue, TNodeId> providerSession;
 
-    /// <summary>
-    /// Constructor.
-    /// </summary>
-    /// <param name="providerSession">Data provider session.</param>
     public InternalQuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
         this.providerSession = providerSession;
 
-    /// <summary>
-    /// The overall range of the coordinate points managed.
-    /// </summary>
     public Bound Entire =>
         this.providerSession.Entire;
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    /// <summary>
-    /// Dispose method.
-    /// </summary>
     public ValueTask DisposeAsync() =>
         this.providerSession.DisposeAsync();
     
-    /// <summary>
-    /// Flush partially data.
-    /// </summary>
     public ValueTask FlushAsync() =>
         this.providerSession.FlushAsync();
 
-    /// <summary>
-    /// Finish the session.
-    /// </summary>
     public ValueTask FinishAsync() =>
         this.providerSession.FinishAsync();
 
@@ -99,14 +82,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
         return Array.Empty<PointItem<TValue>>();
     }
 
-    /// <summary>
-    /// Lookup values with a coordinate point.
-    /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
     public ValueTask<PointItem<TValue>[]> LookupPointAsync(
-        Point point, CancellationToken ct = default) =>
+        Point point, CancellationToken ct) =>
         this.LookupPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, ct);
     
     /////////////////////////////////////////////////////////////////////////////////
@@ -150,14 +127,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
             }));
     }
 
-    /// <summary>
-    /// Lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values</returns>
     public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
-        Bound bound, CancellationToken ct = default)
+        Bound bound, CancellationToken ct)
     {
         var results = new ExpandableArray<PointItem<TValue>[]>();
         await this.LookupBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, results, ct);
@@ -202,14 +173,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
         return results ?? Utilities.AsyncEmpty<PointItem<TValue>>();
     }
 
-    /// <summary>
-    /// Streaming lookup values with coordinate range.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Point and values asynchronous iterator</returns>
     public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
-        Bound bound, [EnumeratorCancellation] CancellationToken ct = default)
+        Bound bound, [EnumeratorCancellation] CancellationToken ct)
     {
         // Unwrap all nested asynchronous tasks.
         await foreach (var entry in
@@ -271,17 +236,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
             $"Could not add a coordinate point outside entire bound: Point={targetPoint}");
     }
 
-    /// <summary>
-    /// Insert a coordinate point.
-    /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="value">Related value</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>A depth value where placed the coordinate point</returns>
-    /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
-    /// This value is not used directly, but can be used as a performance indicator.</remarks>
     public ValueTask<int> InsertPointAsync(
-        Point point, TValue value, CancellationToken ct = default) =>
+        Point point, TValue value, CancellationToken ct) =>
         this.InsertPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, value, 1, ct);
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -406,17 +362,10 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
         }
     }
 
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
     public async ValueTask<int> InsertPointsAsync(
         IEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default)
+        int bulkInsertBlockSize,
+        CancellationToken ct)
     {
         if (points is IReadOnlyList<PointItem<TValue>> pointList &&
             pointList.Count < bulkInsertBlockSize)
@@ -466,17 +415,10 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
     public async ValueTask<int> InsertPointsAsync(
         IAsyncEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default)
+        int bulkInsertBlockSize,
+        CancellationToken ct)
     {
         var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
         var maxNodeDepth = 0;
@@ -611,15 +553,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
         }
     }
 
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="point">A coordinate point</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
     public async ValueTask<int> RemovePointAsync(
-        Point point, bool performShrinking = false, CancellationToken ct = default)
+        Point point, bool performShrinking, CancellationToken ct)
     {
         var (removed, _) = await this.RemovePointAsync(
             this.providerSession.RootId, this.providerSession.Entire, point, performShrinking, ct);
@@ -698,15 +633,8 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId>
         }
     }
 
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
     public async ValueTask<long> RemoveBoundAsync(
-        Bound bound, bool performShrinking = false, CancellationToken ct = default)
+        Bound bound, bool performShrinking, CancellationToken ct)
     {
         var (removed, _) = await this.RemoveBoundAsync(
             this.providerSession.RootId, this.providerSession.Entire, bound, performShrinking, ct);

@@ -23,6 +23,75 @@ using System.Threading.Tasks;
 namespace MassivePoints;
 
 /// <summary>
+/// QuadTree update session abstraction interface.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
+public abstract class QuadTreeUpdateSession<TValue> : QuadTreeSession<TValue>
+{
+    /// <summary>
+    /// Flush partially data.
+    /// </summary>
+    public abstract ValueTask FlushAsync();
+
+    /// <summary>
+    /// Finish the session.
+    /// </summary>
+    public abstract ValueTask FinishAsync();
+    
+    /// <summary>
+    /// Insert a coordinate point.
+    /// </summary>
+    /// <param name="point">Coordinate point</param>
+    /// <param name="value">Related value</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>A node depth value where placed the coordinate point</returns>
+    /// <remarks>The node depth value indicates how deeply the added coordinate points are placed in the node depth.
+    /// This value is not used directly, but can be used as a performance indicator.</remarks>
+    public abstract ValueTask<int> InsertPointAsync(
+        Point point, TValue value, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    public abstract ValueTask<int> InsertPointsAsync(
+        IEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk insert coordinate points.
+    /// </summary>
+    /// <param name="points">Coordinate point and values</param>
+    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Maximum node depth value where placed the coordinate points</returns>
+    public abstract ValueTask<int> InsertPointsAsync(
+        IAsyncEnumerable<PointItem<TValue>> points, int bulkInsertBlockSize = 100000, CancellationToken ct = default);
+
+    /// <summary>
+    /// Remove coordinate point and values.
+    /// </summary>
+    /// <param name="point">A coordinate point</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Count of removed coordinate points</returns>
+    public abstract ValueTask<int> RemovePointAsync(
+        Point point, bool performShrinking = false, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Remove coordinate point and values.
+    /// </summary>
+    /// <param name="bound">Coordinate range</param>
+    /// <param name="performShrinking">Index shrinking is performed or not</param>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>Count of removed coordinate points</returns>
+    public abstract ValueTask<long> RemoveBoundAsync(
+        Bound bound, bool performShrinking = false, CancellationToken ct = default);
+}
+
+/// <summary>
 /// QuadTree update session implementation.
 /// </summary>
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
