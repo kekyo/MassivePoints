@@ -394,6 +394,10 @@ Apache-v2
 ## History
 
 * 0.13.0:
+  * Splitted core library (`MassivePoints.Core`).
+    * As before, there is no problem if you use the `MassivePoints` package. Rebuilding is required.
+  * Interface types is removed.
+    * ex: `IQuadTree<T>` --> `QuadTree<T>`
   * Supported asynchronous factory for database connection.
 * 0.12.0:
   * Fixed boundary coordinate precision on calculation for splitting.

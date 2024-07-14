@@ -17,6 +17,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.Internal;
 
 // Async method lacks 'await' operators and will run synchronously
 #pragma warning disable CS1998
@@ -194,7 +195,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
                 {
                     var toPointList = new ExpandableArray<PointItem<TValue>>();
                     var toBound = toBounds[index];
-                    toPointList.AddRangePredicate(points, pointItem => toBound.IsWithin(pointItem.Point));
+                    toPointList.AddRangePredicate(points, pointItem => InternalBound.IsWithin(toBound, pointItem.Point));
                     toPoints[index] = toPointList;
                 });
 
@@ -228,7 +229,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             {
                 if (this.parent.nodePoints.TryGetValue(nodeId, out var pointItems))
                 {
-                    Debug.Assert(pointItems.All(pointItem => toBound.IsWithin(pointItem.Point)));
+                    Debug.Assert(pointItems.All(pointItem => InternalBound.IsWithin(toBound, pointItem.Point)));
 
                     points.AddRange(pointItems);
                     this.parent.nodePoints.Remove(nodeId);
@@ -261,7 +262,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         /// <returns>Got coordinate points</returns>
         public ValueTask<PointItem<TValue>[]> LookupBoundAsync(
             int nodeId, Bound targetBound, CancellationToken ct) =>
-            new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => targetBound.IsWithin(entry.Point)).ToArray()));
+            new(Task.Run(() => this.parent.nodePoints[nodeId].Where(entry => InternalBound.IsWithin(targetBound, entry.Point)).ToArray()));
 
         /// <summary>
         /// Lookup and streaming coordinate points from coordinate range.
@@ -275,7 +276,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
         {
             foreach (var entry in this.parent.nodePoints[nodeId])
             {
-                if (targetBound.IsWithin(entry.Point))
+                if (InternalBound.IsWithin(targetBound, entry.Point))
                 {
                     yield return entry;
                 }
@@ -326,7 +327,7 @@ public sealed class InMemoryDataProvider<TValue> : IDataProvider<TValue, int>
             for (var index = points.Count - 1; index >= 0; index--)
             {
                 var entry = points[index];
-                if (bound.IsWithin(entry.Point))
+                if (InternalBound.IsWithin(bound, entry.Point))
                 {
                     points.RemoveAt(index);
                     removed++;

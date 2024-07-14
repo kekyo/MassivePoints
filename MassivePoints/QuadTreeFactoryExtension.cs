@@ -20,18 +20,6 @@ using System.Threading.Tasks;
 
 namespace MassivePoints;
 
-public sealed class QuadTreeFactory
-{
-    internal QuadTreeFactory()
-    {
-    }
-}
-
-public static class QuadTree
-{
-    public static readonly QuadTreeFactory Factory = new();
-}
-
 public static class QuadTreeFactoryExtension
 {
     /// <summary>

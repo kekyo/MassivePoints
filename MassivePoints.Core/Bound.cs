@@ -30,36 +30,6 @@ public readonly struct Bound : IEquatable<Bound>
     // |  |             |             |
     // +  +-------------+-------------+
 
-    private static readonly object locker = new();
-    private static int[] sizes = [1, 2, 4, 8, 16];
-
-    /// <summary>
-    /// Get child bound count.
-    /// </summary>
-    /// <param name="dimension">Target dimension</param>
-    /// <returns>Child bound count.</returns>
-    public static int GetChildBoundCount(int dimension)
-    {
-        if (dimension >= sizes.Length)
-        {
-            lock (locker)
-            {
-                if (dimension >= sizes.Length)
-                {
-                    var newSizes = new int[dimension + 1];
-                    var size = 1;
-                    for (var index = 0; index <= dimension; index++)
-                    {
-                        newSizes[index] = size;
-                        size *= 2;
-                    }
-                    sizes = newSizes;
-                }
-            }
-        }
-        return sizes[dimension];
-    }
-
     /// <summary>
     /// The earth globe (2D) bound.
     /// </summary>

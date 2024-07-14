@@ -19,6 +19,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.Internal;
 
 namespace MassivePoints.Data;
 
@@ -71,8 +72,8 @@ public sealed class DbDataProviderConfiguration
         this.NodePointColumnName = nodePointColumnName ?? GetNodePointColumnName;
         this.NodeColumnName = nodeColumnName ?? GetNodeColumnName;
 
-        var childBoundCount = this.Entire.GetChildBoundCount();
-        var dimensionAxisCount = this.Entire.GetDimensionAxisCount();
+        var childBoundCount = InternalBound.GetChildBoundCount(this.Entire);
+        var dimensionAxisCount = InternalBound.GetDimensionAxisCount(this.Entire);
         
         var nodeColumnNamesJoined = string.Join(",",
             Enumerable.Range(0, childBoundCount).
@@ -280,7 +281,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     {
                         return null;
                     }
-                    var chibiIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
+                    var chibiIds = new long[InternalBound.GetChildBoundCount(this.parent.Configuration.Entire)];
                     for (var index = 0; index < chibiIds.Length; index++)
                     {
                         chibiIds[index] = record.GetInt64(index);
@@ -337,7 +338,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.insertPointQuery, ct);
 
-            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() + 1];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(this.parent.Configuration.Entire) + 1];
             args[0] = nodeId;
             for (var index = 0; index < insertCount; index++)
             {
@@ -409,7 +410,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 recored =>
                 {
                     var baseNodeId = recored.GetInt64(0) + 1;
-                    var childIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
+                    var childIds = new long[InternalBound.GetChildBoundCount(this.parent.Configuration.Entire)];
                     for (var index = 0; index < childIds.Length; index++)
                     {
                         childIds[index] = baseNodeId + index;
@@ -492,7 +493,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.updateNodeQuery, ct);
             
-            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(this.parent.Configuration.Entire) * 2];
             args[0] = toNodeId;
             for (var index = 1; index < args.Length; index++)
             {
@@ -557,7 +558,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(targetBound) * 2];
             args[0] = nodeId;
             for (var index = 0; index < targetBound.Axes.Length; index++)
             {
@@ -570,7 +571,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             await command.ExecuteReadRecordsAsync(
                 record =>
                 {
-                    var rps = new double[targetBound.GetDimensionAxisCount()];
+                    var rps = new double[InternalBound.GetDimensionAxisCount(targetBound)];
                     for (var index = 0; index < rps.Length; index++)
                     {
                         rps[index] = record.GetDouble(index);
@@ -596,9 +597,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(targetBound) * 2];
             args[0] = nodeId;
-            for (var index = 0; index < targetBound.GetDimensionAxisCount(); index++)
+            for (var index = 0; index < InternalBound.GetDimensionAxisCount(targetBound); index++)
             {
                 var axis = targetBound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
@@ -684,9 +685,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.deleteBoundQuery, ct);
             
-            var args = new object[1 + bound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(bound) * 2];
             args[0] = nodeId;
-            for (var index = 0; index < bound.GetDimensionAxisCount(); index++)
+            for (var index = 0; index < InternalBound.GetDimensionAxisCount(bound); index++)
             {
                 var axis = bound.Axes[index];
                 args[1 + index * 2] = axis.Origin;

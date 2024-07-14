@@ -101,13 +101,13 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint))
+            if (InternalBound.IsWithin(childBound, targetPoint))
             {
                 return await this.LookupPointAsync(
                     childId, childBound, targetPoint, ct);
@@ -142,13 +142,13 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         await Task.WhenAll(
             childBounds.
             Select((childBound, index) =>
             {
-                if (childBound.IsIntersection(targetBound))
+                if (InternalBound.IsIntersection(childBound, targetBound))
                 {
                     var childId = childIds[index];
                     return this.LookupBoundAsync(
@@ -189,14 +189,14 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
         IAsyncEnumerable<PointItem<TValue>>? results = null;
             
         for (var index = 0; index < childIds.Length; index++)
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsIntersection(targetBound))
+            if (InternalBound.IsIntersection(childBound, targetBound))
             {
                 results = results?.Concat(await this.EnumerateBoundAsync(
                     childId, childBound, targetBound, ct), ct) ??
@@ -245,13 +245,13 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
                 return nodeDepth;
             }
 
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
             node = await this.providerSession.DistributePointsAsync(
                 nodeId, childBounds, ct);
         }
         else
         {
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
         }
 
         var childIds = node.ChildIds;
@@ -260,7 +260,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint))
+            if (InternalBound.IsWithin(childBound, targetPoint))
             {
                 return await this.InsertPointAsync(
                     childId, childBound, targetPoint, value, nodeDepth + 1, ct);
@@ -302,13 +302,13 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
                 return nodeDepth;
             }
 
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
             node = await this.providerSession.DistributePointsAsync(
                 nodeId, childBounds, ct);
         }
         else
         {
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
         }
 
         var childIds = node.ChildIds;
@@ -327,7 +327,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
                     {
                         Debugger.Break();
                     }
-                    return bound.IsWithin(pointItem.Point);
+                    return InternalBound.IsWithin(bound, pointItem.Point);
                 });
                 splittedLists[index] = list;
             });
@@ -501,14 +501,14 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node!.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
         var remainsHint = 0;
 
         for (var index = 0; index < childBounds.Length; index++)
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            Debug.Assert(!childBound.IsWithin(targetPoint));
+            Debug.Assert(!InternalBound.IsWithin(childBound, targetPoint));
             remainsHint += await this.GetPointCountAsync(
                 childId, childBound, targetPoint, ct);
 
@@ -536,7 +536,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         if (performShrinking)
         {
@@ -547,7 +547,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (InternalBound.IsWithin(childBound, targetPoint))
                 {
                     var (rmd, rms) = await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -578,7 +578,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (InternalBound.IsWithin(childBound, targetPoint))
                 {
                     return await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -613,7 +613,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         if (performShrinking)
         {
@@ -624,7 +624,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (InternalBound.IsIntersection(childBound, targetBound))
                 {
                     var (rmd, rms) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
@@ -656,7 +656,7 @@ internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (InternalBound.IsIntersection(childBound, targetBound))
                 {
                     var (rmd, _) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
