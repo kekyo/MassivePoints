@@ -86,15 +86,3 @@ public readonly struct Axis : IEquatable<Axis>
     public static implicit operator Axis((double origin, double to) axis) =>
         new Axis(axis.origin, axis.to);
 }
-
-public static class AxisExtension
-{
-    public static void Deconstruct(
-        this Axis self,
-        out double origin,
-        out double to)
-    {
-        origin = self.Origin;
-        to = self.To;
-    }
-}

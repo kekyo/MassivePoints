@@ -18,7 +18,30 @@ using MassivePoints.DataProvider;
 
 namespace MassivePoints;
 
-public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
+/// <summary>
+/// QuadTree abstraction interface.
+/// </summary>
+/// <typeparam name="TValue">Coordinate point related value type</typeparam>
+public abstract class QuadTree<TValue>
+{
+    /// <summary>
+    /// Begin a reading session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The reading session</returns>
+    public abstract ValueTask<QuadTreeSession<TValue>> BeginSessionAsync(
+        CancellationToken ct = default);
+    
+    /// <summary>
+    /// Begin an update session.
+    /// </summary>
+    /// <param name="ct">`CancellationToken`</param>
+    /// <returns>The update session</returns>
+    public abstract ValueTask<QuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+        CancellationToken ct = default);
+}
+
+public sealed class QuadTree<TValue, TNodeId> : QuadTree<TValue>
 {
     private readonly IDataProvider<TValue, TNodeId> provider;
 
@@ -35,11 +58,11 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     /// </summary>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>The reading session</returns>
-    public async ValueTask<IQuadTreeSession<TValue>> BeginSessionAsync(
+    public override async ValueTask<QuadTreeSession<TValue>> BeginSessionAsync(
         CancellationToken ct = default)
     {
         var session = await this.provider.BeginSessionAsync(false, ct);
-        return new QuadTreeSession<TValue,TNodeId>(session);
+        return new QuadTreeSession<TValue, TNodeId>(session);
     }
 
     /// <summary>
@@ -47,10 +70,10 @@ public sealed class QuadTree<TValue, TNodeId> : IQuadTree<TValue>
     /// </summary>
     /// <param name="ct">`CancellationToken`</param>
     /// <returns>The update session</returns>
-    public async ValueTask<IQuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
+    public override async ValueTask<QuadTreeUpdateSession<TValue>> BeginUpdateSessionAsync(
         CancellationToken ct = default)
     {
         var session = await this.provider.BeginSessionAsync(true, ct);
-        return new QuadTreeUpdateSession<TValue,TNodeId>(session);
+        return new QuadTreeUpdateSession<TValue, TNodeId>(session);
     }
 }

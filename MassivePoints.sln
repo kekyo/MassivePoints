@@ -20,6 +20,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{3275
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImportOsmNode", "samples\ImportOsmNode\ImportOsmNode.csproj", "{59AAE64E-BEED-4ED1-8AA0-96A4F3771E9A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MassivePoints.Core", "MassivePoints.Core\MassivePoints.Core.csproj", "{B962124C-BD87-4953-9EC2-6DD8CCBFF0D1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +40,10 @@ Global
 		{59AAE64E-BEED-4ED1-8AA0-96A4F3771E9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{59AAE64E-BEED-4ED1-8AA0-96A4F3771E9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{59AAE64E-BEED-4ED1-8AA0-96A4F3771E9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B962124C-BD87-4953-9EC2-6DD8CCBFF0D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B962124C-BD87-4953-9EC2-6DD8CCBFF0D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B962124C-BD87-4953-9EC2-6DD8CCBFF0D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B962124C-BD87-4953-9EC2-6DD8CCBFF0D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

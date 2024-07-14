@@ -8,6 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 using System;
+using MassivePoints.Internal;
 
 // Parameter has no matching param tag in the XML comment (but other parameters do)
 #pragma warning disable CS1573
@@ -67,7 +68,7 @@ public static class BoundExtension
     /// <returns>Dimension axis count</returns>
     public static int GetDimensionAxisCount(
         this Bound self) =>
-        self.Axes.Length;
+        InternalBound.GetDimensionAxisCount(self);
 
     /// <summary>
     /// Get child bound count.
@@ -75,46 +76,15 @@ public static class BoundExtension
     /// <returns>Child bound count</returns>
     public static int GetChildBoundCount(
         this Bound self) =>
-        Bound.GetChildBoundCount(self.Axes.Length);
+        InternalBound.GetChildBoundCount(self.Axes.Length);
 
     /// <summary>
     /// Get child bounds.
     /// </summary>
     /// <returns>Child bounds</returns>
     public static Bound[] GetChildBounds(
-        this Bound self)
-    {
-        var childBounds = new Bound[Bound.GetChildBoundCount(self.Axes.Length)];
-        
-        for (var childIndex = 0; childIndex < childBounds.Length; childIndex++)
-        {
-            var axes = new Axis[self.Axes.Length];
-            var halfBits = childIndex;
-            
-            for (var axisIndex = 0; axisIndex < axes.Length; axisIndex++, halfBits >>= 1)
-            {
-                var axis = self.Axes[axisIndex];
-                var halfSizeHint = axis.SizeHint / 2;
-                var halfOrigin = axis.Origin + halfSizeHint;
-                if ((halfBits & 0x01) == 0x01)
-                {
-                    axes[axisIndex] = new Axis(
-                        halfOrigin,
-                        axis.To);
-                }
-                else
-                {
-                    axes[axisIndex] = new Axis(
-                        axis.Origin,
-                        halfOrigin);
-                }
-            }
-            
-            childBounds[childIndex] = new Bound(axes);
-        }
-
-        return childBounds;
-    }
+        this Bound self) =>
+        InternalBound.GetChildBounds(self);
 
     /// <summary>
     /// Checks whether the specified coordinate point is within this range.
@@ -123,26 +93,8 @@ public static class BoundExtension
     /// <param name="point">A coordinate point</param>
     /// <returns>True when within.</returns>
     public static bool IsWithin(
-        this Bound self, Point point)
-    {
-        if (self.Axes.Length != point.Elements.Length)
-        {
-            return false;
-        }
-
-        for (var index = 0; index < self.Axes.Length; index++)
-        {
-            var l = self.Axes[index];
-            var r = point.Elements[index];
-            
-            if (!(l.Origin <= r && r < l.To))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+        this Bound self, Point point) =>
+        InternalBound.IsWithin(self, point);
 
     /// <summary>
     /// Checks whether the specified 2D coordinate point is within this range.
@@ -153,7 +105,7 @@ public static class BoundExtension
     /// <returns>True is within.</returns>
     public static bool IsWithin(
         this Bound self, double x, double y) =>
-        IsWithin(self, new Point(x, y));
+        InternalBound.IsWithin(self, new Point(x, y));
 
     /// <summary>
     /// Checks whether the specified 3D coordinate point is within this range.
@@ -165,7 +117,7 @@ public static class BoundExtension
     /// <returns>True is within.</returns>
     public static bool IsWithin(
         this Bound self, double x, double y, double z) =>
-        IsWithin(self, new Point(x, y, z));
+        InternalBound.IsWithin(self, new Point(x, y, z));
 
     /// <summary>
     /// Checks whether the specified range is intersects this range.
@@ -174,26 +126,8 @@ public static class BoundExtension
     /// <param name="bound">Coordinate range</param>
     /// <returns>True when intersected.</returns>
     public static bool IsIntersection(
-        this Bound self, Bound bound)
-    {
-        if (self.Axes.Length != bound.Axes.Length)
-        {
-            return false;
-        }
-
-        for (var index = 0; index < self.Axes.Length; index++)
-        {
-            var l = self.Axes[index];
-            var r = bound.Axes[index];
-            
-            if (l.Origin > r.To || r.Origin > l.To)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+        this Bound self, Bound bound) =>
+        InternalBound.IsIntersection(self, bound);
 
     /// <summary>
     /// Add an axis.
@@ -202,5 +136,5 @@ public static class BoundExtension
     /// <returns>New bound definition</returns>
     public static Bound AddAxis(
         this Bound self, Axis axis) =>
-        new Bound([..self.Axes, axis]);
+        InternalBound.AddAxis(self, axis);
 }

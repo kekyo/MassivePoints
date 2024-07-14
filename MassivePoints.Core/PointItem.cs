@@ -171,35 +171,3 @@ public static class PointItem
     public static PointItem<TValue> Create<TValue>(KeyValuePair<Point, TValue> pointItem) =>
         new PointItem<TValue>(pointItem.Key, pointItem.Value);
 }
-
-public static class PointItemExtension
-{
-    public static void Deconstruct<TValue>(
-        this PointItem<TValue> self,
-        out Point point,
-        out TValue value)
-    {
-        point = self.Point;
-        value = self.Value;
-    }
-
-    public static void Deconstruct<TValue>(
-        this PointItem<TValue> self,
-        out double x,
-        out double y,
-        out TValue value)
-    {
-        if (self.Point.Elements is [var sx, var sy])
-        {
-            x = self.Point.Elements[0];
-            y = self.Point.Elements[1];
-            value = self.Value;
-        }
-        else
-        {
-            x = double.NaN;
-            y = double.NaN;
-            value = default!;
-        }
-    }
-}

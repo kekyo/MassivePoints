@@ -86,7 +86,7 @@ public static class Program
     /// <param name="maxNodePoints">Maximum points of each node</param>
     /// <param name="ct">CancellationToken</param>
     /// <returns>QuadTree instance</returns>
-    private static async ValueTask<IQuadTree<long>> CreateQuadTreeAsync(
+    private static async ValueTask<QuadTree<long>> CreateQuadTreeAsync(
         string dbFileName, bool isReadOnly, int maxNodePoints, CancellationToken ct)
     {
 #if true
@@ -99,7 +99,12 @@ public static class Program
         }.ToString();
 
         var quadTreeProvider = QuadTree.Factory.CreateProvider<long>(
-            () => new SQLiteConnection(connectionString),
+            async ct =>
+            {
+                var connection = new SQLiteConnection(connectionString);
+                await connection.OpenAsync(ct);
+                return connection;
+            },
             new DbDataProviderConfiguration(Bound.TheGlobe2D, maxNodePoints));
 #else
         var connectionString = new SqliteConnectionStringBuilder
@@ -110,7 +115,15 @@ public static class Program
         }.ToString();
 
         var quadTreeProvider = QuadTree.Factory.CreateProvider<long>(
-            () => new SqliteConnection(connectionString),
+            async ct =>
+            {
+                var connection = new SqliteConnection(connectionString);
+                await connection.OpenAsync(ct);
+                
+                // Set journal mode to MEMORY.
+                await connection.SetSQLiteJournalModeAsync(SQLiteJournalModes.Memory, ct);
+                return connection;
+            },
             new DbDataProviderConfiguration(Bound.TheGlobe2D, maxNodePoints));
 #endif
 
@@ -376,7 +389,7 @@ public static class Program
                 {
                     case Node node:
                         var points = await session.LookupPointAsync(
-                            new(node.Longitude!.Value, node.Latitude!.Value));
+                            new(node.Longitude!.Value, node.Latitude!.Value), ct);
                         if (!points.Any(p => p.Value == node.Id!))
                         {
                             throw new InvalidDataException(

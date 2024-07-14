@@ -20,7 +20,7 @@ namespace MassivePoints.Data;
 [EditorBrowsable(EditorBrowsableState.Advanced)]
 public sealed class DbConnectionCache : IAsyncDisposable
 {
-    private readonly Func<DbConnection> connectionFactory;
+    private readonly Func<CancellationToken, ValueTask<DbConnection>> connectionFactory;
     private readonly Dictionary<string, Stack<DbPreparedCommand>> preparedCommands = new();
     private readonly bool useSharedConnection;
 
@@ -29,7 +29,7 @@ public sealed class DbConnectionCache : IAsyncDisposable
 
     internal DbConnectionCache(
         bool useSharedConnection,
-        Func<DbConnection> connectionFactory)
+        Func<CancellationToken, ValueTask<DbConnection>> connectionFactory)
     {
         this.connectionFactory = connectionFactory;
         this.useSharedConnection = useSharedConnection;
@@ -136,8 +136,7 @@ public sealed class DbConnectionCache : IAsyncDisposable
         {
             if (this.commonConnection == null)
             {
-                var connection = this.connectionFactory();
-                await connection.OpenAsync(ct);
+                var connection = await this.connectionFactory(ct);
 
                 this.commonConnection = connection;
                 this.commonTransaction =
@@ -155,8 +154,7 @@ public sealed class DbConnectionCache : IAsyncDisposable
         }
         else
         {
-            var connection = this.connectionFactory();
-            await connection.OpenAsync(ct);
+            var connection = await this.connectionFactory(ct);
 
             var command = connection.CreateCommand();
             return new(this, command, query);

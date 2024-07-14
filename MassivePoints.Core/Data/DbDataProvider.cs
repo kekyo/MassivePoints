@@ -19,6 +19,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using MassivePoints.Internal;
 
 namespace MassivePoints.Data;
 
@@ -71,8 +72,8 @@ public sealed class DbDataProviderConfiguration
         this.NodePointColumnName = nodePointColumnName ?? GetNodePointColumnName;
         this.NodeColumnName = nodeColumnName ?? GetNodeColumnName;
 
-        var childBoundCount = this.Entire.GetChildBoundCount();
-        var dimensionAxisCount = this.Entire.GetDimensionAxisCount();
+        var childBoundCount = InternalBound.GetChildBoundCount(this.Entire);
+        var dimensionAxisCount = InternalBound.GetDimensionAxisCount(this.Entire);
         
         var nodeColumnNamesJoined = string.Join(",",
             Enumerable.Range(0, childBoundCount).
@@ -169,7 +170,7 @@ public sealed class DbDataProviderConfiguration
 /// <typeparam name="TValue">Coordinate point related value type</typeparam>
 public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 {
-    private readonly Func<DbConnection> connectionFactory;
+    private readonly Func<CancellationToken, ValueTask<DbConnection>> connectionFactory;
     private readonly DbDataProviderConfiguration configuration;
 
     /// <summary>
@@ -177,8 +178,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
     /// </summary>
     /// <param name="connectionFactory">`DbConnection` factory</param>
     /// <param name="configuration">Database configuration</param>
+    /// <remarks>The connection instance returned by the connection factory must be open.</remarks>
     public DbDataProvider(
-        Func<DbConnection> connectionFactory,
+        Func<CancellationToken, ValueTask<DbConnection>> connectionFactory,
         DbDataProviderConfiguration configuration)
     {
         this.connectionFactory = connectionFactory;
@@ -189,21 +191,9 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
         this.configuration;
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    public async ValueTask<DbConnection> OpenTemporaryConnectionAsync(
-        CancellationToken ct)
-    {
-        var connection = this.connectionFactory();
-        try
-        {
-            await connection.OpenAsync(ct);
-        }
-        catch
-        {
-            connection.Dispose();
-            throw;
-        }
-        return connection;
-    }
+    public ValueTask<DbConnection> OpenTemporaryConnectionAsync(
+        CancellationToken ct) =>
+        this.connectionFactory(ct);
 
     /// <summary>
     /// Create DataProviderSession instance.
@@ -291,7 +281,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                     {
                         return null;
                     }
-                    var chibiIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
+                    var chibiIds = new long[InternalBound.GetChildBoundCount(this.parent.Configuration.Entire)];
                     for (var index = 0; index < chibiIds.Length; index++)
                     {
                         chibiIds[index] = record.GetInt64(index);
@@ -301,6 +291,12 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 ct, nodeId);
         }
 
+        /// <summary>
+        /// Get number of coordinate points on the node.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Coordinate point count</returns>
         public async ValueTask<int> GetPointCountAsync(
             long nodeId, CancellationToken ct)
         {
@@ -342,7 +338,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var insertCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.insertPointQuery, ct);
 
-            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() + 1];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(this.parent.Configuration.Entire) + 1];
             args[0] = nodeId;
             for (var index = 0; index < insertCount; index++)
             {
@@ -398,6 +394,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
 #endif
         }
 
+        /// <summary>
+        /// Distribute coordinate points into the new child nodes.
+        /// </summary>
+        /// <param name="nodeId">From node id</param>
+        /// <param name="toBounds">To child bounds</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Updated node information</returns>
         public async ValueTask<QuadTreeNode<long>> DistributePointsAsync(
             long nodeId, Bound[] toBounds, CancellationToken ct)
         {
@@ -407,7 +410,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
                 recored =>
                 {
                     var baseNodeId = recored.GetInt64(0) + 1;
-                    var childIds = new long[this.parent.Configuration.Entire.GetChildBoundCount()];
+                    var childIds = new long[InternalBound.GetChildBoundCount(this.parent.Configuration.Entire)];
                     for (var index = 0; index < childIds.Length; index++)
                     {
                         childIds[index] = baseNodeId + index;
@@ -463,6 +466,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             return node;
         }
 
+        /// <summary>
+        /// Aggregate coordinate points on child nodes to a node.
+        /// </summary>
+        /// <param name="nodeIds">Child node ids</param>
+        /// <param name="toBound">Target bound</param>
+        /// <param name="toNodeId">Target node id</param>
+        /// <param name="ct">`CancellationToken`</param>
         public async ValueTask AggregatePointsAsync(
             long[] nodeIds, Bound toBound, long toNodeId, CancellationToken ct)
         {
@@ -483,7 +493,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             using var updateCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.updateNodeQuery, ct);
             
-            var args = new object[1 + this.parent.Configuration.Entire.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(this.parent.Configuration.Entire) * 2];
             args[0] = toNodeId;
             for (var index = 1; index < args.Length; index++)
             {
@@ -498,6 +508,13 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
+        /// <summary>
+        /// Lookup coordinate points from a exact point.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetPoint">Target point</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Got coordinate points</returns>
         public async ValueTask<PointItem<TValue>[]> LookupPointAsync(
             long nodeId, Point targetPoint, CancellationToken ct)
         {
@@ -528,13 +545,20 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             return results.ToArray();
         }
 
+        /// <summary>
+        /// Lookup coordinate points from coordinate range.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetBound">Target coordinate range</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Got coordinate points</returns>
         public async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
             long nodeId, Bound targetBound, CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(targetBound) * 2];
             args[0] = nodeId;
             for (var index = 0; index < targetBound.Axes.Length; index++)
             {
@@ -547,7 +571,7 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             await command.ExecuteReadRecordsAsync(
                 record =>
                 {
-                    var rps = new double[targetBound.GetDimensionAxisCount()];
+                    var rps = new double[InternalBound.GetDimensionAxisCount(targetBound)];
                     for (var index = 0; index < rps.Length; index++)
                     {
                         rps[index] = record.GetDouble(index);
@@ -560,15 +584,22 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             return results.ToArray();
         }
 
+        /// <summary>
+        /// Lookup and streaming coordinate points from coordinate range.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="targetBound">Target coordinate range</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Coordinate points asynchronous iterator</returns>
         public async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
             long nodeId, Bound targetBound, [EnumeratorCancellation] CancellationToken ct)
         {
             using var command = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.selectPointsQuery, ct);
             
-            var args = new object[1 + targetBound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(targetBound) * 2];
             args[0] = nodeId;
-            for (var index = 0; index < targetBound.GetDimensionAxisCount(); index++)
+            for (var index = 0; index < InternalBound.GetDimensionAxisCount(targetBound); index++)
             {
                 var axis = targetBound.Axes[index];
                 args[1 + index * 2] = axis.Origin;
@@ -593,6 +624,14 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
+        /// <summary>
+        /// Remove a coordinate point.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="point">Target coordinate point</param>
+        /// <param name="includeRemains">Include coordinate point remains count in result if true</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Removed count and remains count</returns>
         public async ValueTask<RemoveResults> RemovePointAsync(
             long nodeId, Point point, bool includeRemains, CancellationToken ct)
         {
@@ -632,15 +671,23 @@ public class DbDataProvider<TValue> : IDataProvider<TValue, long>
             }
         }
 
+        /// <summary>
+        /// Remove coordinate points.
+        /// </summary>
+        /// <param name="nodeId">Target node id</param>
+        /// <param name="bound">Target coordinate bound</param>
+        /// <param name="includeRemains">Include coordinate point remains count in result if true</param>
+        /// <param name="ct">`CancellationToken`</param>
+        /// <returns>Removed count and remains count</returns>
         public async ValueTask<RemoveResults> RemoveBoundAsync(
             long nodeId, Bound bound, bool includeRemains, CancellationToken ct)
         {
             using var deleteCommand = await this.connectionCache.GetPreparedCommandAsync(
                 this.parent.configuration.deleteBoundQuery, ct);
             
-            var args = new object[1 + bound.GetDimensionAxisCount() * 2];
+            var args = new object[1 + InternalBound.GetDimensionAxisCount(bound) * 2];
             args[0] = nodeId;
-            for (var index = 0; index < bound.GetDimensionAxisCount(); index++)
+            for (var index = 0; index < InternalBound.GetDimensionAxisCount(bound); index++)
             {
                 var axis = bound.Axes[index];
                 args[1 + index * 2] = axis.Origin;

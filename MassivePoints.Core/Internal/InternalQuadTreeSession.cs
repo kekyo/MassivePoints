@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -22,38 +23,202 @@ using System.Threading.Tasks;
 // The EnumeratorCancellationAttribute will have no effect. The attribute is only effective on a parameter of type CancellationToken in an async-iterator method returning IAsyncEnumerable
 #pragma warning disable CS8424
 
-namespace MassivePoints;
+namespace MassivePoints.Internal;
 
-/// <summary>
-/// QuadTree update session implementation.
-/// </summary>
-/// <typeparam name="TValue">Coordinate point related value type</typeparam>
-/// <typeparam name="TNodeId">Type indicating the ID of the index node managed by the data provider</typeparam>
-[EditorBrowsable(EditorBrowsableState.Advanced)]
-public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
-    QuadTreeSession<TValue, TNodeId>,
-    IQuadTreeUpdateSession<TValue>
+internal abstract class InternalQuadTreeSession<TValue>
 {
-    /// <summary>
-    /// Constructor.
-    /// </summary>
-    /// <param name="providerSession">Data provider session.</param>
-    public QuadTreeUpdateSession(IDataProviderSession<TValue, TNodeId> providerSession) :
-        base(providerSession)
-    {
-    }
+    public abstract Bound Entire { get; }
+
+    public abstract ValueTask DisposeAsync();
     
-    /// <summary>
-    /// Flush partially data.
-    /// </summary>
-    public ValueTask FlushAsync() =>
+    public abstract ValueTask FlushAsync();
+
+    public abstract ValueTask FinishAsync();
+
+    public abstract ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        Point point, CancellationToken ct);
+
+    public abstract ValueTask<PointItem<TValue>[]> LookupBoundAsync(
+        Bound bound, CancellationToken ct);
+
+    public abstract IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
+        Bound bound, [EnumeratorCancellation] CancellationToken ct);
+
+    public abstract ValueTask<int> InsertPointAsync(
+        Point point, TValue value, CancellationToken ct);
+
+    public abstract ValueTask<int> InsertPointsAsync(
+        IEnumerable<PointItem<TValue>> points,
+        int bulkInsertBlockSize,
+        CancellationToken ct);
+
+    public abstract ValueTask<int> InsertPointsAsync(
+        IAsyncEnumerable<PointItem<TValue>> points,
+        int bulkInsertBlockSize,
+        CancellationToken ct);
+
+    public abstract ValueTask<int> RemovePointAsync(
+        Point point, bool performShrinking, CancellationToken ct);
+
+    public abstract ValueTask<long> RemoveBoundAsync(
+        Bound bound, bool performShrinking, CancellationToken ct);
+}
+
+internal sealed class InternalQuadTreeSession<TValue, TNodeId> :
+    InternalQuadTreeSession<TValue>
+{
+    private readonly IDataProviderSession<TValue, TNodeId> providerSession;
+
+    public InternalQuadTreeSession(IDataProviderSession<TValue, TNodeId> providerSession) =>
+        this.providerSession = providerSession;
+
+    public override Bound Entire =>
+        this.providerSession.Entire;
+
+    /////////////////////////////////////////////////////////////////////////////////
+
+    public override ValueTask DisposeAsync() =>
+        this.providerSession.DisposeAsync();
+    
+    public override ValueTask FlushAsync() =>
         this.providerSession.FlushAsync();
 
-    /// <summary>
-    /// Finish the session.
-    /// </summary>
-    public ValueTask FinishAsync() =>
+    public override ValueTask FinishAsync() =>
         this.providerSession.FinishAsync();
+
+    /////////////////////////////////////////////////////////////////////////////////
+
+    private async ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        Point targetPoint,
+        CancellationToken ct)
+    {
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
+        {
+            return await this.providerSession.LookupPointAsync(
+                nodeId, targetPoint, ct);
+        }
+
+        var childIds = node.ChildIds;
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
+
+        for (var index = 0; index < childIds.Length; index++)
+        {
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (InternalBound.IsWithin(childBound, targetPoint))
+            {
+                return await this.LookupPointAsync(
+                    childId, childBound, targetPoint, ct);
+            }
+        }
+
+        return Array.Empty<PointItem<TValue>>();
+    }
+
+    public override ValueTask<PointItem<TValue>[]> LookupPointAsync(
+        Point point, CancellationToken ct) =>
+        this.LookupPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, ct);
+    
+    /////////////////////////////////////////////////////////////////////////////////
+
+    private async ValueTask LookupBoundAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        Bound targetBound,
+        IExpandableArray<PointItem<TValue>[]> results,
+        CancellationToken ct)
+    {
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
+        {
+            var rs = await this.providerSession.LookupBoundAsync(
+                nodeId, targetBound, ct);
+            lock (results)
+            {
+                results.Add(rs);
+            }
+            return;
+        }
+
+        var childIds = node.ChildIds;
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
+
+        await Task.WhenAll(
+            childBounds.
+            Select((childBound, index) =>
+            {
+                if (InternalBound.IsIntersection(childBound, targetBound))
+                {
+                    var childId = childIds[index];
+                    return this.LookupBoundAsync(
+                        childId, childBound, targetBound, results, ct).
+                        AsTask();
+                }
+                else
+                {
+                    return Task.CompletedTask;
+                }
+            }));
+    }
+
+    public override async ValueTask<PointItem<TValue>[]> LookupBoundAsync(
+        Bound bound, CancellationToken ct)
+    {
+        var results = new ExpandableArray<PointItem<TValue>[]>();
+        await this.LookupBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, results, ct);
+        return results.SelectMany(r => r).ToArray();
+    }
+    
+    /////////////////////////////////////////////////////////////////////////////////
+
+    // I know that this nested awaitable has a strange signature:
+    // Instead of performing nested asynchronous iteration and returning the results in every call,
+    // we achieve better performance by performing asynchronous iteration only in the leaf nodes.
+
+    private async ValueTask<IAsyncEnumerable<PointItem<TValue>>> EnumerateBoundAsync(
+        TNodeId nodeId,
+        Bound nodeBound,
+        Bound targetBound,
+        CancellationToken ct)
+    {
+        if (await this.providerSession.GetNodeAsync(nodeId, ct) is not { } node)
+        {
+            return this.providerSession.EnumerateBoundAsync(
+                nodeId, targetBound, ct);
+        }
+
+        var childIds = node.ChildIds;
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
+        IAsyncEnumerable<PointItem<TValue>>? results = null;
+            
+        for (var index = 0; index < childIds.Length; index++)
+        {
+            var childId = childIds[index];
+            var childBound = childBounds[index];
+            if (InternalBound.IsIntersection(childBound, targetBound))
+            {
+                results = results?.Concat(await this.EnumerateBoundAsync(
+                    childId, childBound, targetBound, ct), ct) ??
+                    await this.EnumerateBoundAsync(
+                        childId, childBound, targetBound, ct);
+            }
+        }
+        
+        return results ?? Utilities.AsyncEmpty<PointItem<TValue>>();
+    }
+
+    public override async IAsyncEnumerable<PointItem<TValue>> EnumerateBoundAsync(
+        Bound bound, [EnumeratorCancellation] CancellationToken ct)
+    {
+        // Unwrap all nested asynchronous tasks.
+        await foreach (var entry in
+            (await this.EnumerateBoundAsync(this.providerSession.RootId, this.providerSession.Entire, bound, ct)).
+            WithCancellation(ct))
+        {
+            yield return entry;
+        }
+    }
     
     /////////////////////////////////////////////////////////////////////////////////
 
@@ -80,13 +245,13 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 return nodeDepth;
             }
 
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
             node = await this.providerSession.DistributePointsAsync(
                 nodeId, childBounds, ct);
         }
         else
         {
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
         }
 
         var childIds = node.ChildIds;
@@ -95,7 +260,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            if (childBound.IsWithin(targetPoint))
+            if (InternalBound.IsWithin(childBound, targetPoint))
             {
                 return await this.InsertPointAsync(
                     childId, childBound, targetPoint, value, nodeDepth + 1, ct);
@@ -106,17 +271,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             $"Could not add a coordinate point outside entire bound: Point={targetPoint}");
     }
 
-    /// <summary>
-    /// Insert a coordinate point.
-    /// </summary>
-    /// <param name="point">Coordinate point</param>
-    /// <param name="value">Related value</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>A depth value where placed the coordinate point</returns>
-    /// <remarks>The depth value indicates how deeply the added coordinate points are placed in the node depth.
-    /// This value is not used directly, but can be used as a performance indicator.</remarks>
-    public ValueTask<int> InsertPointAsync(
-        Point point, TValue value, CancellationToken ct = default) =>
+    public override ValueTask<int> InsertPointAsync(
+        Point point, TValue value, CancellationToken ct) =>
         this.InsertPointAsync(this.providerSession.RootId, this.providerSession.Entire, point, value, 1, ct);
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -146,13 +302,13 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                 return nodeDepth;
             }
 
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
             node = await this.providerSession.DistributePointsAsync(
                 nodeId, childBounds, ct);
         }
         else
         {
-            childBounds = nodeBound.GetChildBounds();
+            childBounds = InternalBound.GetChildBounds(nodeBound);
         }
 
         var childIds = node.ChildIds;
@@ -171,7 +327,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
                     {
                         Debugger.Break();
                     }
-                    return bound.IsWithin(pointItem.Point);
+                    return InternalBound.IsWithin(bound, pointItem.Point);
                 });
                 splittedLists[index] = list;
             });
@@ -241,17 +397,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
     }
 
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public async ValueTask<int> InsertPointsAsync(
+    public override async ValueTask<int> InsertPointsAsync(
         IEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default)
+        int bulkInsertBlockSize,
+        CancellationToken ct)
     {
         if (points is IReadOnlyList<PointItem<TValue>> pointList &&
             pointList.Count < bulkInsertBlockSize)
@@ -301,17 +450,10 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
 
     /////////////////////////////////////////////////////////////////////////////////
 
-    /// <summary>
-    /// Bulk insert coordinate points.
-    /// </summary>
-    /// <param name="points">Coordinate point and values</param>
-    /// <param name="bulkInsertBlockSize">Bulk insert block size</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Maximum node depth value where placed the coordinate points</returns>
-    public async ValueTask<int> InsertPointsAsync(
+    public override async ValueTask<int> InsertPointsAsync(
         IAsyncEnumerable<PointItem<TValue>> points,
-        int bulkInsertBlockSize = 100000,
-        CancellationToken ct = default)
+        int bulkInsertBlockSize,
+        CancellationToken ct)
     {
         var fixedList = new ExpandableArray<PointItem<TValue>>(bulkInsertBlockSize);
         var maxNodeDepth = 0;
@@ -359,14 +501,14 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node!.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
         var remainsHint = 0;
 
         for (var index = 0; index < childBounds.Length; index++)
         {
             var childId = childIds[index];
             var childBound = childBounds[index];
-            Debug.Assert(!childBound.IsWithin(targetPoint));
+            Debug.Assert(!InternalBound.IsWithin(childBound, targetPoint));
             remainsHint += await this.GetPointCountAsync(
                 childId, childBound, targetPoint, ct);
 
@@ -394,7 +536,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         if (performShrinking)
         {
@@ -405,7 +547,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (InternalBound.IsWithin(childBound, targetPoint))
                 {
                     var (rmd, rms) = await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -436,7 +578,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsWithin(targetPoint))
+                if (InternalBound.IsWithin(childBound, targetPoint))
                 {
                     return await this.RemovePointAsync(
                         childId, childBound, targetPoint, performShrinking, ct);
@@ -446,15 +588,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
     }
 
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="point">A coordinate point</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
-    public async ValueTask<int> RemovePointAsync(
-        Point point, bool performShrinking = false, CancellationToken ct = default)
+    public override async ValueTask<int> RemovePointAsync(
+        Point point, bool performShrinking, CancellationToken ct)
     {
         var (removed, _) = await this.RemovePointAsync(
             this.providerSession.RootId, this.providerSession.Entire, point, performShrinking, ct);
@@ -478,7 +613,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
 
         var childIds = node.ChildIds;
-        var childBounds = nodeBound.GetChildBounds();
+        var childBounds = InternalBound.GetChildBounds(nodeBound);
 
         if (performShrinking)
         {
@@ -489,7 +624,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (InternalBound.IsIntersection(childBound, targetBound))
                 {
                     var (rmd, rms) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
@@ -521,7 +656,7 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
             {
                 var childId = childIds[index];
                 var childBound = childBounds[index];
-                if (childBound.IsIntersection(targetBound))
+                if (InternalBound.IsIntersection(childBound, targetBound))
                 {
                     var (rmd, _) = await this.RemoveBoundAsync(
                         childId, childBound, targetBound, performShrinking, ct);
@@ -533,15 +668,8 @@ public sealed class QuadTreeUpdateSession<TValue, TNodeId> :
         }
     }
 
-    /// <summary>
-    /// Remove coordinate point and values.
-    /// </summary>
-    /// <param name="bound">Coordinate range</param>
-    /// <param name="performShrinking">Index shrinking is performed or not</param>
-    /// <param name="ct">`CancellationToken`</param>
-    /// <returns>Count of removed coordinate points</returns>
-    public async ValueTask<long> RemoveBoundAsync(
-        Bound bound, bool performShrinking = false, CancellationToken ct = default)
+    public override async ValueTask<long> RemoveBoundAsync(
+        Bound bound, bool performShrinking, CancellationToken ct)
     {
         var (removed, _) = await this.RemoveBoundAsync(
             this.providerSession.RootId, this.providerSession.Entire, bound, performShrinking, ct);
